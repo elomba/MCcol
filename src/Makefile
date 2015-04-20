@@ -1,3 +1,5 @@
+# Main makefile
+
 OBJ_CORE = Distance.o Util.o Readconf.o Output.o Cells.o Init.o WriteCfg.o Structure.o Interactions.o Thermo.o Energy.o Move.o Main.o
 MKDIR_P = mkdir -p
 BINDIR = ../bin
