@@ -3,7 +3,6 @@ MKDIR_P = mkdir -p
 BINDIR = ../bin
 MODPATH = ../modules
 
-
 BIN = ../bin/gpMC.exe
 
 OBJ_ALL = $(OBJ_CORE) set_precision.o Definitions.o
