@@ -2,13 +2,13 @@
 
 <p><h1> MCcol Project</h><p>
 
-<p><b> Team: MCcol </b></p>
+<p><b> Team: MC-cool </b></p>
 <p> Members: </p>
         Enrique Lomba (enrique.lomba@csic.es)
         Eva G. Noya (eva.noya@iqfr.csic.es)
         Noé G. Almarza (noe@iqfr.csic.es)
         
-This repositorie has been created to control file's versions of PDS eAgenda project.
+This repository has been created to control file's versions gpMC (<font color="red">general purpose Monte Carlo</font> program).
 
 Requisites
 ==========
