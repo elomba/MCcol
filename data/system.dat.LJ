@@ -1,0 +1,16 @@
+2 4608                  ! No. of species, no. of atoms
+"O" "Si"                ! Names of species
+"K"                  ! Energy units, Interaction (mors/lj)
+"lj"
+120.0     2.791  9.0  !! O-O  a b c rc (Morse parameters + cutoff)
+"lj"
+100.000   1.628  9.0  !! O-Si
+"lj"
+85.0  2.1598 9.0  !! Si-Si
+-0.65 1.30    ! Charge of species 1, .., nsp
+0.35 10 10 20   ! kappa, kx, ky, kz ! Ewald parameters (cutoff is taken as the largest cutoff of the non-elect. interactions)
+
+
+
+
+
