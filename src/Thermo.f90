@@ -50,7 +50,7 @@ Contains
        End Do
        nhstmax = i
        Esum = Sum(Ehisto(-nde:nde))
-       Open (14,file='Ehisto.dat')
+       Open (14,file='results/Ehisto.dat')
        Do i=Max(nhstmin,-nde),Min(nhstmax,nde)
           Write(14,'(2f15.7)')(i+0.5)*deltaE+Eref,Ehisto(i)/Esum
        End Do

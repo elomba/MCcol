@@ -128,7 +128,7 @@ contains
         E_sav = 0
         Ehisto(:) = 0.0d0
         if (ntraj .ne. 0) then
-            open(iotrj,file="traj.xyz")
+            open(iotrj,file="results/traj.xyz")
         endif
     End Subroutine Init_rundata
 

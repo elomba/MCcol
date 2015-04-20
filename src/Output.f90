@@ -42,8 +42,8 @@ contains
   subroutine init_printout
     use potential, only : elect
     implicit none
-    Open(ioth,file='thermoaver.dat')
-    Open(iothi,file='thermoins.dat')
+    Open(ioth,file='results/thermoaver.dat')
+    Open(iothi,file='results/thermoins.dat')
     Write(ioth,'(/" No. moves  % accept.       <E_tot>         <E_sr>"/1x,80("-"))')
     if (elect) then
        Write(iothi,'(/" No. moves  % accept.        E_tot           E_sr         E_coul "/1x,80("-"))')
@@ -91,7 +91,7 @@ contains
     Implicit None
     real(wp) :: ri
     Integer :: i, j, l
-    Open(igr,file="gmix.dat")
+    Open(igr,file="results/gmix.dat")
     Write(igr,'("#      r(Å)   ")',advance='no')
     Do i=1, nsp
        Do j=i,nsp

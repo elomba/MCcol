@@ -4,4 +4,5 @@
 .cproject
 *.exe
 bin
+results
 *~

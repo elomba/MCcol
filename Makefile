@@ -1,5 +1,6 @@
 # Main makefile
 
+RESPATH = results/
 VPATH = src/
 OBJDIR = obj
 OBJ_CORE = $(addprefix $(OBJDIR)/, Distance.o Util.o Readconf.o Output.o Cells.o Init.o\
@@ -28,7 +29,7 @@ $(OBJDIR)/%.o: %.f90 ${OBJDIR}
 	ifort -c $(FCOPTS) $< -o $@
 
 $(BIN): ${MODPATH} ${BINDIR} $(OBJ_CORE)
-	ifort $(LKOPTS) -o $(BIN)  $(OBJ_ALL) 
+	ifort $(LKOPTS) -o $(BIN)  $(OBJ_ALL) ; ${MKDIR_P} ${RESPATH}
 
 $(OBJ_CORE) : $(OBJDIR)/set_precision.o $(OBJDIR)/Definitions.o
 
