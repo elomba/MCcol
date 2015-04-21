@@ -1,4 +1,4 @@
-# Main makefile
+# Main makefile for program gpMC (project MCcol)
 
 RESPATH = results/
 VPATH = src/
@@ -16,14 +16,9 @@ OBJ_ALL = $(OBJ_CORE) $(OBJDIR)/set_precision.o $(OBJDIR)/Definitions.o
 
 FCOPTS = -fast -module $(MODPATH) 
 
-vpath %.f90 .
-
 %.o : %.mod
 
 .SUFFIXES : .f90
-
-#.f90.o:
-#	ifort -c $(FCOPTS)   $<
 	
 $(OBJDIR)/%.o: %.f90 ${OBJDIR}
 	ifort -c $(FCOPTS) $< -o $@
