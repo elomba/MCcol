@@ -30,7 +30,7 @@
 !
 !   An interpolation algorithm is used to evaluate interactions.
 !
-! E. Lomba, April, 2015
+! E.G. Noya, E. Lomba, April, 2015
 !
 !
 Program gpMC
@@ -48,7 +48,7 @@ Program gpMC
     ! Variables defining the system configuration
     Use configuration, Only : natoms
     ! Control parameters for the run
-    Use rundata, Only : nequil, nstep, nb, ensemble, npgr, s_cput, ntraj
+    Use rundata, Only : restart, nequil, nstep, nb, ensemble, npgr, s_cput, ntraj, istep, istep_ini
     ! Initialization routies (including input of data)
     ! System properties
     Use properties
@@ -64,17 +64,21 @@ Program gpMC
     Use Thermo, Only : Averages
     ! Output routines
     Use Output, Only : Printout, init_printout, initout, run_info,&
-        & printgr, end_printout
+        & printgr, end_printout, print_ener
     Use WriteCfg, only : dump_trj
-    ! Routines to calculate the energy (with and without link cell)
+    ! Routines to calculate the energy (with and without link cell).
     Use Energy, Only : Energ, Energ_cell
     ! Link cell routines
     Use Cells, Only : build_cells, init_cell
+    ! routines to change the volume
+    Use VolumeChange, Only : move_volume
     ! Utility routines
     Use Util, Only : cputime
     Implicit None
-    Integer :: istep, j, ntest
+    Integer :: j, ntest
     Real (wp) :: esrold, fourold
+    ! Intercep kill signals for clean and orderly exit execution
+    call catch()
     ! Get initial CPU time
     s_cput = cputime()
     !
@@ -89,14 +93,16 @@ Program gpMC
     ! Program information
     !
     call initout
-    !
-    ! Initialize potential parameters
-    !
-    Call Init_pot
-    !
-    ! Initialize interpolation tables for pair potentials
-    !
-    Call Init_interp
+    if (.not. restart) then
+        !
+        ! Initialize potential parameters
+        !
+        Call Init_pot
+        !
+        ! Initialize interpolation tables for pair potentials
+        !
+        Call Init_interp
+    endif
     !
     ! Initialize and build link cells (if possible), controlled by use_cell)
     !
@@ -111,6 +117,7 @@ Program gpMC
     else
         Call Energ
     endif
+    call print_ener
     !
     ! Initialize printout
     !
@@ -124,14 +131,14 @@ Program gpMC
     ! Run nstep configuration generations (natoms*nstep atom
     ! displacements at present )
     !
-    Do istep=1, nstep
+    Do istep=1+istep_ini, nstep+istep_ini
         !   if (use_cell) call build_cells
         Call move_natoms(natoms)
 
         !
         ! Insert here particle insertions/deletions, volume changes, etc ..
         !
-
+        if(Ensemble == 'npt') Call move_volume
         !
         ! Perform averages when equilibration has been reached.
         !
@@ -169,8 +176,10 @@ Program gpMC
     else
         Call energ
     Endif
+    call print_ener
     Call end_printout
-
+    ! Dump restart file
+    call cierra(1)
 End Program gpMC
 
 

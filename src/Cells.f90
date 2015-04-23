@@ -13,9 +13,9 @@ contains
         !
         ! Cell size extends up to rcut
         !
-        maxi= Int(a(1)/(rcut))
-        maxj= int(b(2)/(rcut))
-        maxk= Int(c(3)/(rcut))
+        maxi= Int(a(1)/(rcut+rdmax(1)))
+        maxj= int(b(2)/(rcut+rdmax(2)))
+        maxk= Int(c(3)/(rcut+rdmax(2)))
         ncell = maxi*maxj*maxk
         nn = 3**ndim
         Allocate(neigh(0:ncell-1,nn),head(0:ncell-1),list(natoms))
