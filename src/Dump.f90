@@ -80,7 +80,7 @@ Subroutine Load
     Use Util, only : cputime
     Implicit None
     Character ::  Dia*10, Hora*10, Bhora*10, BDia*10, dfname*30
-    open (1000,file="results/restart.dmp",form="unformatted")
+    open (1000,file="data/restart.dmp",form="unformatted")
     call random_seed
     call random_seed(size=length)
     allocate(seed(1:length))
