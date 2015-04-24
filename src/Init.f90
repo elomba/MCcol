@@ -133,6 +133,7 @@ contains
         if (.not. restart) then
             call random_seed
             call random_seed(size=length)
+            print *, "** Seed length in words:",length
             allocate(seed(1:length))
             Read(iorun,*) seed(1:length)
             call random_seed(put=seed(1:length))

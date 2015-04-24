@@ -16,7 +16,7 @@ Subroutine Cierra(clean)
     Call Date_and_time(Dia,Hora)
     BHora = Hora(1:2) // ':' //  Hora(3:4) // ':' // Hora(5:6)
     BDia  = Dia(7:8) // '-' // Dia(5:6) // '-' // Dia(1:4)
-    dfname = "results/dump"//dia(1:8)//hora//".dmp"
+    dfname = "results/dump"//dia(1:8)//hora(1:4)//".dmp"
     call random_seed(size=length)
     call random_seed(get=seed(1:length))
     open (1000,file=dfname,form="unformatted")

@@ -9,12 +9,12 @@ OBJ_CORE = $(addprefix $(OBJDIR)/, Distance.o Util.o Readconf.o Output.o Cells.o
 MKDIR_P = mkdir -p
 BINDIR = bin
 MODPATH = modules
-FC = ifort
+FC = gfortran
 BIN = bin/gpMC.exe
 
 OBJ_ALL = $(OBJ_CORE) $(OBJDIR)/set_precision.o $(OBJDIR)/Definitions.o  
 
-FCOPTS = -fast -module $(MODPATH) 
+FCOPTS = -O3 -J$(MODPATH) 
 
 %.o : %.mod
 
@@ -40,7 +40,7 @@ all:
 	$(MAKE)  $(BIN)
 
 debug:
-	$(MAKE) FCOPTS="-debug -O0 -CB -module $(MODPATH)"
+	$(MAKE) -f Makefile.gfortran FCOPTS="-g -O0 -fcheck=bounds -J$(MODPATH)"
 
 debug-mac:
 	$(MAKE) FCOPTS="-debug -O0 -CB -module $(MODPATH)" LKOPTS="-Wl,-no_pie"

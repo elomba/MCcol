@@ -45,15 +45,21 @@ Contains
             If (ensemble == 'nvt') Then
 
                 If (elect) Then
-                    Write(*,'(/" No. moves  % accept.        E_tot           E_sr            E_Four       <E_self> "/1x,80("-"))')
+                    Write(*,1000)
+1000                format(/" No. moves  % accept.        E_tot           E_sr            E_Four       <E_self> "&
+                        &/1x,80("-"))
                 Else
-                    Write(*,'(/" No. moves  % accept.        E_tot           E_sr    "/1x,80("-"))')
+                    Write(*,1010)
+1010                format(/" No. moves  % accept.        E_tot           E_sr    "/1x,80("-"))
                 Endif
             Elseif (ensemble == 'npt') Then
                 If (elect) Then
-                    Write(*,'(/" No. moves  % accept.   % accept.vol     E_tot           E_sr            E_Four       <E_self>   Vol"/1x,100("-"))')
+                    Write(*,1020)
+1020                format(/" No. moves  % accept.   % accept.vol     E_tot           E_sr ",&
+                        &"           E_Four       <E_self>   Vol"/1x,100("-"))
                 Else
-                    Write(*,'(/" No. moves  % accept.   % accept.vol     E_tot           E_sr    Vol"/1x,120("-"))')
+                    Write(*,1030)
+1030                format(/" No. moves  % accept.   % accept.vol     E_tot           E_sr    Vol"/1x,120("-"))
                 Endif
             endif
             first = .False.

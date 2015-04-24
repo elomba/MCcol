@@ -150,7 +150,7 @@ Program gpMC
             !
             ! Dump trajectory file if needed
             if (ntraj .ne. 0) then
-                if (mod(istep-istep_ini,ntraj)) then
+                if (mod(istep-istep_ini,ntraj) .Eq. 0) then
                     call dump_trj(istep)
                 endif
             endif

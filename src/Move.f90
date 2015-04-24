@@ -430,7 +430,6 @@ Subroutine move_natoms(natoms)
   ! Routine to move natoms sequentially 
   !
   Use set_precision
-  use interfaces
   use Moving, only : move_link_int, moven
   use linkcell, only : use_cell
   implicit none

@@ -98,7 +98,7 @@ Module linkcell
     Integer, Dimension(:,:), Allocatable:: neigh
     Integer, Dimension(:), Allocatable :: head, list
     Integer :: ncell, nn, maxi,maxj,maxk
-    logical :: use_cell=.true.
+    logical :: use_cell=.false.
 End Module linkcell
   
 module interp
