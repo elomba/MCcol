@@ -41,10 +41,10 @@ contains
     end subroutine run_info
     subroutine init_printout
         use potential, only : elect
-        use rundata, only : ensemble
+        use rundata, only : ensemble, stat
         implicit none
-        Open(ioth,file='results/thermoaver.dat')
-        Open(iothi,file='results/thermoins.dat')
+        Open(ioth,file='results/thermoaver.dat',access=stat)
+        Open(iothi,file='results/thermoins.dat',access=stat)
         if (ensemble == 'nvt') Then
             Write(ioth,'(/" No. moves  % accept.       <E_tot>         <E_sr>"/1x,80("-"))')
             if (elect) then
@@ -108,11 +108,11 @@ contains
             endif
         ElseIf (ensemble == 'npt' ) then
             if (elect) then
-                Write(iothi,'(i9,3x,2f9.4,3x,5g15.7)') ncycles, 100*Dble(naccept)/dble(ntrial), prob_vol, Etotal, E_sr, E_coulomb, v0
-                Write(*,'(i9,3x,2f9.4,3x,7g15.7)') ncycles, 100*Dble(naccept)/Dble(ntrial), prob_vol, Etotal, E_sr, E_Fourier, selfe, v0
+                Write(iothi,'(i9,3x,2f9.4,3x,9g15.7)') ncycles, 100*Dble(naccept)/dble(ntrial), prob_vol, Etotal, E_sr, E_coulomb, v0, side(:)
+                Write(*,'(i9,3x,2f9.4,3x,9g15.7)') ncycles, 100*Dble(naccept)/Dble(ntrial), prob_vol, Etotal, E_sr, E_Fourier, selfe, v0
             else
-                Write(iothi,'(i9,3x,2f9.4,3x,5g15.7)') ncycles, 100*Dble(naccept)/dble(ntrial), prob_vol, Etotal, E_sr, v0
-                Write(*,'(i9,3x,2f9.4,3x,6g15.7)') ncycles, 100*Dble(naccept)/dble(ntrial), prob_vol, Etotal, E_sr, v0, side(:)
+                Write(iothi,'(i9,3x,2f9.4,3x,9g15.7)') ncycles, 100*Dble(naccept)/dble(ntrial), prob_vol, Etotal, E_sr, v0, side(:)
+                Write(*,'(i9,3x,2f9.4,3x,9g15.7)') ncycles, 100*Dble(naccept)/dble(ntrial), prob_vol, Etotal, E_sr, v0
             endif
         Endif
 

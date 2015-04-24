@@ -144,19 +144,19 @@ Program gpMC
         !
         If (istep >= nequil) Then
             Call histograms(ensemble)
-            If (Mod(istep,npgr).Eq.0) Then
+            If (Mod(istep-istep_ini,npgr).Eq.0) Then
                 Call printgr
             Endif
             !
             ! Dump trajectory file if needed
             if (ntraj .ne. 0) then
-                if (mod(istep,ntraj)) then
+                if (mod(istep-istep_ini,ntraj)) then
                     call dump_trj(istep)
                 endif
             endif
         End If
-        If (Mod(istep,nb).Eq.0) Then
-            If (istep >= nequil) Then
+        If (Mod(istep-istep_ini,nb).Eq.0) Then
+            If (istep > nequil) Then
                 Call Averages
                 Call structure
             Else

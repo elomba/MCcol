@@ -1,0 +1,8 @@
+"nvt"                ! Simulation ensemble
+200 50 10 10 20  ! No. of steps (total), Equilibration steps, size of average block, print g(r) every npgr, print trajectory file
+0.1 0.1 0.15 ! maximum trial displacements
+2000.0 ! run temperature
+-1067770 ! random number seed
+200.0 0.05 ! grid for energy histogram, grid for g(r)
+
+

@@ -130,29 +130,29 @@ contains
         Endif
         !
         ! Read and set seed for random number generator
-
-        call random_seed
-        call random_seed(size=length)
-        print *, length
-        Read(iorun,*) seed(1:length)
-        allocate(seed(1:length))
-        call random_seed(put=seed(1:length))
-        !
-        ! Set counters and accumulators to 0
-        !
-        naccept = 0
-        ntrial = 0
-        naver = 0
-        Etotal = 0
-        Etav = 0
-        E_sav = 0
-        Ehisto(:) = 0.0d0
-        rhisto(:) = 0.0d0
+        if (.not. restart) then
+            call random_seed
+            call random_seed(size=length)
+            allocate(seed(1:length))
+            Read(iorun,*) seed(1:length)
+            call random_seed(put=seed(1:length))
+            !
+            ! Set counters and accumulators to 0
+            !
+            naccept = 0
+            ntrial = 0
+            naver = 0
+            Etotal = 0
+            Etav = 0
+            E_sav = 0
+            Ehisto(:) = 0.0d0
+            rhisto(:) = 0.0d0
+        endif
         !
         !
         !
         if (ntraj .ne. 0) then
-            open(iotrj,file="results/traj.xyz")
+            open(iotrj,file="results/traj.xyz",status=stat)
         endif
     End Subroutine Init_rundata
 

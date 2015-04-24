@@ -67,7 +67,7 @@ Module rundata
     Real(wp) :: rdmax(1:ndim)
     ! NpT ensemble (Eva's change)
     Real(wp) :: pres, vdmax
-    character :: ensemble*3, initcf*3, scaling*5
+    character :: ensemble*3, initcf*3, scaling*5, stat*10="sequential"
 End Module rundata
 
 Module properties
