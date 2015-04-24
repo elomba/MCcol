@@ -17,6 +17,7 @@ Contains
     ! Calculate pairwise energies (Morse and real part of Ewald)
     ! Full calculation
     !
+    eng = 0
     Do i = 1, natoms
        Do j = i+1, natoms
           iti = iatype(i)
@@ -69,6 +70,7 @@ Contains
     !
     ! Calculate pairwise energies 
     !
+    eng = 0
     Do i = 1, natoms
        !
        ! Locate cell

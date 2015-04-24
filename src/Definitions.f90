@@ -94,11 +94,11 @@ Module linkcell
     ! Shared components in the link cell method
     !
     Use set_precision
-    Real (wp) :: cellx, celly, cellz
-    Integer, Dimension(:,:), Allocatable:: neigh
-    Integer, Dimension(:), Allocatable :: head, list
-    Integer :: ncell, nn, maxi,maxj,maxk
-    logical :: use_cell=.false.
+    Real (wp) :: cellx, celly, cellz, cellxo, cellyo, cellzo
+    Integer, Dimension(:,:), Allocatable:: neigh, neigho
+    Integer, Dimension(:), Allocatable :: head, list, heado, listo
+    Integer :: ncell, nn, maxi,maxj,maxk, ncello, nno, maxio,maxjo,maxko
+    logical :: use_cell=.true.
 End Module linkcell
   
 module interp

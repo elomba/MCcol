@@ -1,8 +1,8 @@
-.false.
+.true.
 "dlp"
 2 4608                  ! No. of species, no. of atoms
-"O"  -0.65
- "Si"  1.3                ! Names of species
+"O"   -0.65
+ "Si"   1.3                ! Names of species
 "eV"                    ! Energy units, Interaction (mors/lj)
 "mors"
 0.023272  1.3731  3.791  9.0  !! O-O  a b c rc (Morse parameters + cutoff)

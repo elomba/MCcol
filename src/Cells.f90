@@ -2,6 +2,33 @@ module cells
     use configuration, only : ndim, natoms, a, b, c, r
     use potential, only : rcut
 contains
+    subroutine store_cell
+        use linkcell
+        maxio = maxi
+        maxjo = maxj
+        maxko = maxk
+        ncello = ncell
+        neigho(:,:) = neigh(:,:)
+        heado(:) = head(:)
+        listo(:) = list(:)
+        cellxo = cellx
+        cellyo = celly
+        cellzo = cellz
+    end subroutine store_cell
+    subroutine restore_cell
+        use linkcell
+        maxi = maxio
+        maxj = maxjo
+        maxk = maxko
+        ncell = ncello
+        neigh(:,:) = neigho(:,:)
+        head(:) = heado(:)
+        list(:) = listo(:)
+        cellx = cellxo
+        celly = cellyo
+        cellz = cellzo
+    end subroutine restore_cell
+
     Subroutine Init_cell
         Use linkcell
         use rundata, only : rdmax
@@ -10,6 +37,7 @@ contains
         !   Only for orthogonal cells
         !
         Integer :: i,j,k,ii,jj,kk,l,in
+        logical, save :: first=.true.
         !
         ! Cell size extends up to rcut
         !
@@ -18,7 +46,11 @@ contains
         maxk= Int(c(3)/(rcut+rdmax(2)))
         ncell = maxi*maxj*maxk
         nn = 3**ndim
-        Allocate(neigh(0:ncell-1,nn),head(0:ncell-1),list(natoms))
+        if (first) then
+            Allocate(neigh(0:ncell-1,nn),head(0:ncell-1),list(natoms))
+            Allocate(neigho(0:ncell-1,nn),heado(0:ncell-1),listo(natoms))
+            first = .false.
+        endif
         cellx = 1.0d0/maxi
         celly = 1.0d0/maxj
         cellz = 1.0d0/maxk
