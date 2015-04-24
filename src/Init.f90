@@ -8,8 +8,6 @@ Module Init
     Use properties
     Use rundata
 contains
-
-
     Subroutine Init_conf
         !
         ! Read in system configuration and initialize storage.
@@ -23,6 +21,12 @@ contains
         Integer :: keytrj, imcon, iatm, i, j, nit
         Real(wp) :: dumx, dumy, dumz, qsp2
         Open (iosys,file='data/system.dat')
+        read(iosys,*) restart
+        if (restart) then
+            ! Load dump file
+            call load
+            return
+        endif
         read(iosys,*) initcf
         Read(iosys,*) nsp, natoms
         nitmax = (nsp*nsp+nsp)/2
@@ -98,37 +102,57 @@ contains
         ! Read data specific for the run
         !
         Implicit None
-        Integer :: seed(2), length=1
         Open(iorun,file='data/runMC.dat')
         read(iorun,*) ensemble
-        If (ensemble .Ne. "nvt") Then
+        If (ensemble .Ne. "nvt" .and. ensemble.Ne. "npt") Then
             Print *, " *** Input error:", ensemble," not implemented .."
             stop
         End If
         ! No. of steps, no. of squilibration steps, average every nb, print
-        ! gr ever ngr
+        ! gr ever ngr, no. of step to dump trajectory (0 no dumps)
         !
         Read(iorun,*) nstep, nequil, nb, npgr, ntraj
-        Read(iorun,*) rdmax(1:ndim)
-        Read(iorun,*) temp
-        Read(iorun,*) seed(1:length)
-        Read(iorun,*) deltaE, deltagr
-        call random_seed
-        call random_seed(size=length)
-        call random_seed(put=seed(1:length))
+        ! Max. displacement and Temperature
+        If (ensemble == 'nvt') Then
+            Read(iorun,*) rdmax(1:ndim)
+            Read(iorun,*) temp
+            Read(iorun,*) deltaEng, deltagr
+        else if(ensemble == 'npt') Then
+            ! Max displacement and volumen change, scaling, temperature and pressure
+            Read(iorun,*) rdmax(1:ndim), vdmax, scaling
+            If (Trim(Adjustl(scaling)) .Ne. "ortho".and. Trim(Adjustl(scaling)).Ne."isotr") Then
+                Print *, " *** Input error:", scaling," not implemented .."
+                stop
+            Endif
+
+            Read(iorun,*) temp,pres
+            Read(iorun,*) deltar, deltagr
+        Endif
         !
-        ! kT = scaled temperature k_b T in energy units
+        ! Read and set seed for random number generator
+        if (.not. restart) then
+            call random_seed
+            call random_seed(size=length)
+            allocate(seed(1:length))
+            Read(iorun,*) seed(1:length)
+            call random_seed(put=seed(1:length))
+            !
+            ! Set counters and accumulators to 0
+            !
+            naccept = 0
+            ntrial = 0
+            naver = 0
+            Etotal = 0
+            Etav = 0
+            E_sav = 0
+            Ehisto(:) = 0.0d0
+            rhisto(:) = 0.0d0
+        endif
         !
-        !  kT = kbeV*temp
-        naccept = 0
-        ntrial = 0
-        naver = 0
-        Etotal = 0
-        Etav = 0
-        E_sav = 0
-        Ehisto(:) = 0.0d0
+        !
+        !
         if (ntraj .ne. 0) then
-            open(iotrj,file="traj.xyz")
+            open(iotrj,file="results/traj.xyz",status=stat)
         endif
     End Subroutine Init_rundata
 
@@ -189,10 +213,14 @@ contains
         If (units == "eV") Then
             ctr = ctreV
             kT = kbev*temp
+            pres = pres*bar2eV
+
         Else If (Trim(Adjustl(units)) == Trim(Adjustl("K"))) Then
             !
             ! energy units are K
             !
+            pres = pres*bar2k
+
             ctr = ctreV*ev2k
             kT = temp
         Else
@@ -208,21 +236,24 @@ contains
         ! Initialized Ewald method
         !
         if (elect) then
+            call init_selfe
             call init_fourier
         Endif
-        !
-        ! With the cutoff defined, allocate arrays for g(r)
-        !
-        nmaxgr = Nint(rcut/deltagr)
-        Allocate(histomix(nmaxgr,nsp,nsp),gmix(nmaxgr,nsp,nsp))
-        histomix(:,:,:) = 0
+        if (.not. restart) then
+            !
+            ! With the cutoff defined, allocate arrays for g(r)
+            !
+            nmaxgr = Nint(rcut/deltagr)
+            Allocate(histomix(nmaxgr,nsp,nsp),gmix(nmaxgr,nsp,nsp))
+            histomix(:,:,:) = 0
+        endif
     End Subroutine Init_pot
 
-    subroutine Init_fourier
+    subroutine Init_selfe
         implicit none
-        Integer :: i, ind, kx, ky, kz
+        Integer :: i
         !
-        ! Self energy of Ewald contribution
+        ! Self energy of Ewald contribution and allocate arrays for Ewald sums
         !
         selfe = 0
         qtotal = 0
@@ -236,15 +267,21 @@ contains
         qtotal = Sum(q(1:natoms))
         selfe = - ctr*(kappa/Sqrt(pi))*selfe
 
+        kmt = (2*kmx+1)*(2*kmy+1)*(kmz+1)
+        Allocate(eix(1:natoms,-kmx:kmx),eiy(1:natoms,-kmy:kmy),eiz(1:natoms,0:kmz))
+        Allocate(einx(-kmx:kmx),einy(-kmy:kmy),einz(0:kmz))
+        Allocate(kr(ndim),km2(0:kmt),ekm2(kmt),rhokk(kmt),deltann(kmt))
+        Write(*, '("** Charged system: Init Fourier terms with Ewald parameters:",f10.5,3i4)') kappa, kmx, kmy, kmz
+
+    end subroutine Init_selfe
+
+    subroutine Init_fourier
+        implicit none
+        Integer :: i, ind, kx, ky, kz
         !
         ! Initialize Fourier components of Ewald contributions
         !
         pi2 = 2*pi
-        kmt = (2*kmx+1)*(2*kmy+1)*(kmz+1)
-        Write(*, '("** Charged system: Init Fourier terms with Ewald parameters:",f10.5,3i4)') kappa, kmx, kmy, kmz
-        Allocate(eix(1:natoms,-kmx:kmx),eiy(1:natoms,-kmy:kmy),eiz(1:natoms,0:kmz))
-        Allocate(einx(-kmx:kmx),einy(-kmy:kmy),einz(0:kmz))
-        Allocate(kr(ndim),km2(0:kmt),ekm2(kmt),rhokk(kmt),deltann(kmt))
         rhokk(:) = 0.0d0
         dospix = 2*pi/side(1)
         dospiy = 2*pi/side(2)
@@ -302,9 +339,9 @@ contains
         !
         !  Initialize interpolation tables for short range pair interactions
         !
-        use interp, only : utab, dr, rmin2
+        use interp, only : utab, dr, rmin2, ncut
         implicit none
-        integer :: iti, itj, i, j, k, ncut,  nit
+        integer :: iti, itj, i, j, k, nit
         real (wp) :: upot, rr, upmax=80.0d0
         real(wp), external :: fpot
         ncut = nint ((rcut+0.5)/dr)
