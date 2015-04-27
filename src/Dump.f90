@@ -71,6 +71,10 @@ Subroutine Cierra(clean)
 End Subroutine Cierra
 
 Subroutine Load
+!
+! Load subroutine loads values from a previous dump in order to restart the simulation
+! from its latest state
+!
     Use rundata
     Use configuration
     Use properties
