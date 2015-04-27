@@ -60,20 +60,25 @@ contains
             endif
         elseif (ensemble == 'npt' ) Then
             Write(ioth,1040)
-1040        format(/" No. moves  % accept.   % accept. vol.   <E_tot>      <E_sr>    <Vol>      <Lx>     <Ly>    <Lz>"&
+1040        format(/" No. moves  % accept.   % accept. vol.   <E_tot>      <E_sr>    <Vol>",&
+                &"             <Lx>            <Ly>          <Lz>"&
                 /1x,120("-"))
             if (elect) then
                 Write(iothi,1050)
                 write(*,1060)
-1050            format(/" No. moves  % accept.  % acc. vol.     E_tot           E_sr         E_coul     Vol"&
-                    /1x,120("-"))
-1060            format(/" No. moves  % accept.   % acc. vol.     E_tot           E_sr            E_Four       <E_self>     Vol"&
+1050            format(/" No. moves  % accept.  % acc. vol.      E_tot         E_sr",&
+                &"            E_coul       Vol          Lx              Ly             Lz"&
+                    /1x,140("-"))
+1060            format(/" No. moves  % accept.   % acc. vol.     E_tot         E_sr",&
+                &"            E_Four       <E_self>     Vol"&
                     &/1x,120("-"))
             else
                 Write(iothi,1070)
                 Write(*,1080)
-1070            format(/" No. moves  % accept.   % acc. vol.    E_tot          E_sr       Vol     Lx      Ly    Lz"/1x,120("-"))
-1080            format(/" No. moves  % accept.    % acc. vol.    E_tot           E_sr      Vol"/1x,&
+1070            format(/" No. moves  % accept.    % acc. vol.    E_tot          E_sr",&
+                &"        Vol       Lx           Ly         Lz"/1x,120("-"))
+1080            format(/" No. moves  % accept.    % acc. vol.    E_tot          E_sr",&
+                &"        Vol       "/1x,&
                     &100("-"))
             endif
         endif

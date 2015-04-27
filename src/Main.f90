@@ -4,18 +4,28 @@
 ! (single or multicomponent) with or without charges. Charges are
 ! treated using Ewald sums. The program implements a link cell
 ! algorithm if the sample size allows it.
-! Implemented ensembles: NVT
+! Implemented ensembles: NVT, NpT (define in input as "npt"/"nvt")
 !
-! Input data files (see the files for parameter specifications) :
+! When interrumpted or at the end of the run, the program dumps its current state in at
+! restart file name "results/dumpDATEHOUR.dmp". First record of file system.dat is the
+! logical variable restart. When set to .true. a file named "data/restar.dmp" will be read and the
+! simulation is restarted from a previous run using the dump file.
+!
+! Input data files --directory "data/" (see the files for parameter specifications) :
 !           system.dat : contains description of the system to be simulated
 !           runMC.dat :  contains specific parameters that control
 !                        the run
 !           CONFIG:      initial configuration in DLPOLY 2 format (to
 !                         be generalized)
-! Output files:
+! Output files (directory "results/"):
 !           thermoaver.dat : thermodynamic averages
 !           thermoins.dat  : instantaneous thermodynamic quantities
 !           gmix.dat       : pair correlation functions
+!           rho_histo.dat  : density histogram (NPT simulations)
+!           E.histo.dat    : Energy histogram  (NVT simulations)
+!           traj.xyz       : Trajectory file
+!           last.xyz       : Last configuration
+!           CONFIG.last    : Last configuration in DLPOLY 2 format
 !
 ! Program units:
 !         Energy: "eV" electronVolts
@@ -65,7 +75,7 @@ Program gpMC
     ! Output routines
     Use Output, Only : Printout, init_printout, initout, run_info,&
         & printgr, end_printout, print_ener
-    Use WriteCfg, only : dump_trj
+    Use WriteCfg, only : dump_trj, writecfg_dlp, writecfg_xyz
     ! Routines to calculate the energy (with and without link cell).
     Use Energy, Only : Energ, Energ_cell
     ! Link cell routines
@@ -173,12 +183,16 @@ Program gpMC
     !
     if (use_cell) then
         Call energ_cell
-         call print_ener
     else
         Call energ
     Endif
     call print_ener
     Call end_printout
+    !
+    ! Print last configuration in DLPOLY format and .xyz
+    !
+    call writecfg_dlp
+    call writecfg_xyz(istep-1)
     ! Dump restart file
     call cierra(1)
 End Program gpMC

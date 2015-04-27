@@ -91,7 +91,6 @@ Contains
         Endif
 
         v0=side(1)*side(2)*side(3)
-
         a(1) = side(1)
         b(2) = side(2)
         c(3) = side(3)

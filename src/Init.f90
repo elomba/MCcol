@@ -131,14 +131,37 @@ contains
             Read(iorun,*) deltar, deltagr
         Endif
         !
-        ! Read and set seed for random number generator
+        ! Adjust T and conversion factors depending on units used.
+        !
+        If (units == "eV") Then
+            ctr = ctreV
+            kT = kbev*temp
+            pres = pres*bar2eV
+
+        Else If (Trim(Adjustl(units)) == Trim(Adjustl("K"))) Then
+            !
+            ! energy units are K
+            !
+            pres = pres*bar2k
+
+            ctr = ctreV*ev2k
+            kT = temp
+        Else
+            Print *, " *** Input error:",units," not implemented as energy un&
+          &it"            
+            Stop
+        End If
+        !
+        !
         if (.not. restart) then
             call random_seed
             call random_seed(size=length)
-            print *, "** Seed length in words:",length
             allocate(seed(1:length))
-            Read(iorun,*) seed(1:length)
-            call random_seed(put=seed(1:length))
+            !
+            ! Commented out, useful to run parallel runs with different seeds
+            !!$            print *, "** Seed length in words:",length
+            !!$            Read(iorun,*) seed(1:length)
+            !!$            call random_seed(put=seed(1:length))
             !
             ! Set counters and accumulators to 0
             !
@@ -210,27 +233,6 @@ contains
         !
         Implicit None
         Integer :: i,j, nit
-        !
-        ! Adjust T and conversion factors depending on units used.
-        !
-        If (units == "eV") Then
-            ctr = ctreV
-            kT = kbev*temp
-            pres = pres*bar2eV
-
-        Else If (Trim(Adjustl(units)) == Trim(Adjustl("K"))) Then
-            !
-            ! energy units are K
-            !
-            pres = pres*bar2k
-
-            ctr = ctreV*ev2k
-            kT = temp
-        Else
-            Print *, " *** Input error:",units," not implemented as energy un&
-          &it"            
-            Stop
-        End If
 
         ! Set global cutoff to the maximum of the site-site cutoffs
         rcut = Maxval(rc(:,:))
