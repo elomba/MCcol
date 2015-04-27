@@ -14,6 +14,7 @@ contains
         ! Initialize particle configuration
         !
         use readconf, only : dlp_readconf
+        use linkcell, only : use_cell, list, listo
         !
         !   Unit cell is tetragonal !!
         !
@@ -38,6 +39,7 @@ contains
         Read(iosys,*) units
 
         Allocate(r(1:natoms,ndim),iatype(natoms))
+        if (use_cell) Allocate(list(natoms),listo(natoms))
         nit = 1
         do i=1, nsp
             do j=i, nsp

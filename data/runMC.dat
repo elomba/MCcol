@@ -1,5 +1,5 @@
 "npt"                ! Simulation ensemble
-40 40 10 10 0  ! No. of steps (total), Equilibration steps, size of average block, print g(r) every npgr, print trajectory file
+8 4 1 1 0  ! No. of steps (total), Equilibration steps, size of average block, print g(r) every npgr, print trajectory file
 0.05 0.05 0.05 0.05 "isotr"  ! maximum trial displacements
 4000.0 166.054 ! run temperature
 0.001 0.05 ! grid for energy/density histogram, grid for g(r)

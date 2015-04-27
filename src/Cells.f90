@@ -37,7 +37,6 @@ contains
         !   Only for orthogonal cells
         !
         Integer :: i,j,k,ii,jj,kk,l,in
-        logical, save :: first=.true.
         !
         ! Cell size extends up to rcut
         !
@@ -46,10 +45,21 @@ contains
         maxk= Int(c(3)/(rcut+rdmax(2)))
         ncell = maxi*maxj*maxk
         nn = 3**ndim
-        if (first) then
-            Allocate(neigh(0:ncell-1,nn),head(0:ncell-1),list(natoms))
-            Allocate(neigho(0:ncell-1,nn),heado(0:ncell-1),listo(natoms))
-            first = .false.
+        ! ncellmax is initialized to 0 in Definitions.f90
+        if ( ncell > ncellmax ) then
+            !
+            ! If already allocated this means that volume has changed too much
+            if (allocated(neigh)) then
+                deAllocate(neigho,heado)
+                deAllocate(neigh,head)
+            endif
+            ncellmax = 3*ncell
+            !
+            ! Allocate neighbor lists. link cell list, listo allocated in init_conf
+            ! or in load (when in a restart run)
+            !
+            Allocate(neigh(0:ncellmax-1,nn),head(0:ncellmax-1))
+            Allocate(neigho(0:ncellmax-1,nn),heado(0:ncellmax-1))
         endif
         cellx = 1.0d0/maxi
         celly = 1.0d0/maxj

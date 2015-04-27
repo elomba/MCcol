@@ -97,7 +97,7 @@ Module linkcell
     Real (wp) :: cellx, celly, cellz, cellxo, cellyo, cellzo
     Integer, Dimension(:,:), Allocatable:: neigh, neigho
     Integer, Dimension(:), Allocatable :: head, list, heado, listo
-    Integer :: ncell, nn, maxi,maxj,maxk, ncello, nno, maxio,maxjo,maxko
+    Integer :: ncell, ncellmax=0, nn, maxi,maxj,maxk, ncello, nno, maxio,maxjo,maxko
     logical :: use_cell=.true.
 End Module linkcell
   

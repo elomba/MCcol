@@ -24,7 +24,7 @@ Subroutine Cierra(clean)
     write(1000) ensemble, scaling, units
     write(1000) natoms, nitmax, nmaxgr
     write(1000) nsp, nb, nstep, ntrial, naccept, nvaccept, naver, nequil, npgr, ntraj
-    write(1000) r, q, qsp, iatype, ntype, atoms, itp
+    write(1000) r, q, qsp, iatype, ntype, atoms, itp, keyp
     write(1000) aa, bb, cc, rc
     write(1000) dospix, dospiy, dospiz, rcpcut, rcpcut2
     write(1000) kmx, kmy, kmz, kmt
@@ -74,7 +74,7 @@ Subroutine Load
     Use rundata
     Use configuration
     Use properties
-    Use linkcell
+    Use linkcell, only : use_cell, list, listo
     Use potential
     Use interp
     Use Util, only : cputime
@@ -90,12 +90,13 @@ Subroutine Load
     Read(1000) natoms, nitmax, nmaxgr
     Read(1000) nsp, nb, nstep, ntrial, naccept, nvaccept, naver, nequil, npgr, ntraj
     Allocate(r(1:natoms,ndim),iatype(natoms))
+    if (use_cell) Allocate(list(natoms),listo(natoms))
     Allocate(ntype(nsp),atoms(nsp),qsp(nsp),q(natoms),qprod(nitmax))
     Allocate(aa(nsp,nsp),cc(nsp,nsp),bb(nsp,nsp),rc(nsp&
         &,nsp),itp(nsp,nsp),rc2(nitmax),pot(nitmax)&
         &,keyp(nitmax),al(nitmax),bl(nitmax),&
         & cl(nitmax),bl2(nitmax))
-    Read(1000) r, q, qsp, iatype, ntype, atoms, itp
+    Read(1000) r, q, qsp, iatype, ntype, atoms, itp, keyp
     Read(1000) aa, bb, cc, rc
     Read(1000) dospix, dospiy, dospiz, rcpcut, rcpcut2
     read(1000) kmx, kmy, kmz, kmt
@@ -105,7 +106,7 @@ Subroutine Load
         Allocate(eix(1:natoms,-kmx:kmx),eiy(1:natoms,-kmy:kmy),eiz(1:natoms,0:kmz))
         Allocate(einx(-kmx:kmx),einy(-kmy:kmy),einz(0:kmz))
         Allocate(kr(ndim),km2(0:kmt),ekm2(kmt),rhokk(kmt),deltann(kmt))
-        Read(1000) km2, ekm2, kr, rc2, al, bl, cl, bl2
+        Read(1000) km2, ekm2, kr
         Read(1000) rhokk, deltann, einx, einy, einz, eix, eiy, eiz
     endif
     Read(1000) rcut, rcut2, kappa, selfe, qtotal, pi2
