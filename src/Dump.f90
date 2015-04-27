@@ -11,7 +11,7 @@ Subroutine Cierra(clean)
     Character ::  Dia*10, Hora*10, Bhora*10, BDia*10, dfname*30
     !
     ! Dummy subrutine. Here the user should take appropriate actions for an orderly
-    ! program exit in case of system crash with SIGTERM signals
+    ! program exit in case of system crash with SIGTERM signals.
     !
     Call Date_and_time(Dia,Hora)
     BHora = Hora(1:2) // ':' //  Hora(3:4) // ':' // Hora(5:6)
@@ -31,7 +31,7 @@ Subroutine Cierra(clean)
     write(1000) rc2, al, bl, cl, bl2
     write(1000) elect, ctr
     if (elect) then
-        write(1000) km2, ekm2, kr
+        write(1000) km2, ekm2, kr, qprod(1:nitmax)
         write(1000) rhokk, deltann, einx, einy, einz, eix, eiy, eiz
     endif
     write(1000) rcut, rcut2, kappa, selfe, qtotal, pi2
@@ -110,7 +110,7 @@ Subroutine Load
         Allocate(eix(1:natoms,-kmx:kmx),eiy(1:natoms,-kmy:kmy),eiz(1:natoms,0:kmz))
         Allocate(einx(-kmx:kmx),einy(-kmy:kmy),einz(0:kmz))
         Allocate(kr(ndim),km2(0:kmt),ekm2(kmt),rhokk(kmt),deltann(kmt))
-        Read(1000) km2, ekm2, kr
+        Read(1000) km2, ekm2, kr, qprod(1:nitmax)
         Read(1000) rhokk, deltann, einx, einy, einz, eix, eiy, eiz
     endif
     Read(1000) rcut, rcut2, kappa, selfe, qtotal, pi2

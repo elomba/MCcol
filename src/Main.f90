@@ -171,12 +171,12 @@ Program gpMC
     !
     ! Calculate energy from last configuration (consistency check).
     !
-    !if (use_cell) then
-     !   Call energ_cell
-     !    call print_ener
-    !else
+    if (use_cell) then
+        Call energ_cell
+         call print_ener
+    else
         Call energ
-    !Endif
+    Endif
     call print_ener
     Call end_printout
     ! Dump restart file
