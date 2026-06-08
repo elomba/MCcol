@@ -5,14 +5,15 @@ Module Energy
   Use properties
   Use rundata
 Contains 
-  Subroutine energ
+  Subroutine energ(f)
     !
     !  Calculate energy
     !
     Implicit None
-    Real(wp) :: rdd(ndim), rd2, rr, eng,  eng_f
+    Real(dkind) :: eng, eng_f
+    Real(wp) :: rdd(ndim), rd2, rr
     Integer :: i,j, iti, itj, nit
-    Real(wp), external :: dist2, fpot
+    Real(wp), external :: dist2, f
     !
     ! Calculate pairwise energies (Morse and real part of Ewald)
     ! Full calculation
@@ -23,23 +24,27 @@ Contains
           iti = iatype(i)
           itj = iatype(j)
           nit = itp(iti,itj)
-          rdd(:) = r(i,:)-r(j,:)
+          rdd(:) = R(:,i)-R(:,j)
           rd2 = dist2(rdd)
           If (rd2 < rc2(nit)) Then
              iti = iatype(i)
              itj = iatype(j)
-             eng = eng + fpot(rd2,nit)
+             eng = eng + f(rd2,nit)
           End If
        End Do
     End Do
     E_sr = eng
-    !Write(*,'(80("-")/" vdW Energy=",g15.7,1x,a2)')eng,units
+!    Write(*,'(80("-")/" vdW Energy=",g15.7,1x,a2)')eng*kT,units
     eng_f = 0
     if (elect) then
        !
        !  Calculate Fourier component of Ewald sum
        !
-       call fourier(eng_f)
+       if (fou_type == 1) then
+          call fourier(eng_f)
+       else
+          call four_pme(eng_f)
+       endif
        Etotal = E_sr+eng_f+selfe
        E_coulomb = eng_f+selfe
        E_Fourier = eng_f
@@ -55,7 +60,40 @@ Contains
 
   End Subroutine energ
 
-  Subroutine energ_cell
+  Subroutine energ_cell(f)
+    use linkcell
+    !
+    !  Calculate energy using linked cells. 
+    Implicit None
+    real(dkind) ::  eng,  eng_f
+    Real(wp), external :: dist2, f
+    call Eshort_r(f,eng)
+    E_sr = eng
+    !Write(*,'(80("-")/" **vdW Energy=",g15.7,1x,a2)')eng,units
+    eng_f = 0
+    if (elect) then
+       !
+       !  Calculate Fourier component of Ewald sum
+       !
+       if (fou_type == 1) then
+          call fourier(eng_f)
+       else
+          call four_pme(eng_f)
+       endif
+       Etotal = E_sr+eng_f+selfe
+       E_Fourier = eng_f
+       !write(*, '(" K cutoff",f10.5," 1/A")')rcpcut
+       !write(*, '(" Coulomb energy (self energy) ",g15.7,1x,a2)') selfe, units
+       !write(*, '(" **Coulomb energy (Fourier term)",g15.7,1x,a2)') eng_f, units
+       !write(*, '(" Coulomb energy ",g15.7,1x,a2)') selfe+eng_f,units
+       !write(*, '(" E_sr =",g15.7,1x,a2)') E_sr, units
+       !write(*, '(" Deviation from charge neutrality =",g15.7)') qtotal
+    endif
+    !Write(*, '(" Etotal =",g15.7,1x,a2/80("-"))') selfe+eng_f+eng,units
+
+  End Subroutine energ_cell
+
+    Subroutine energ_cell_int
     use linkcell
     use interp
     !
@@ -63,8 +101,9 @@ Contains
     !  interpolation for short range interactions, hence the short range part
     !  of the Coulomb potential cannot be separated.
     Implicit None
-    Real(wp) :: rdd(ndim), rd2, rr, eng,  eng_f
-    Real (wp) :: y0, y1, y2, y3, a0, a1, a2, a3, mu, mu2, xmu
+    real(dkind) ::  eng,  eng_f
+    Real(wp) :: rdd(ndim), rd2, rr
+    Real (wp) :: y(0:3), a(0:3),  mu, mu2, xmu
     Integer :: i,j, iti, itj, ix, jy, kz, cell, icell, nit, ir, nop=0
     Real(wp), external :: dist2, fpot
     !
@@ -75,9 +114,9 @@ Contains
        !
        ! Locate cell
        !
-       ix=int((r(i,1)+0.5d0)/cellx)
-       jy=int((r(i,2)+0.5d0)/celly)
-       kz=int((r(i,3)+0.5d0)/cellz)
+       ix=int((R(1,i)+0.5d0)/cellx)
+       jy=int((R(2,i)+0.5d0)/celly)
+       kz=int((R(3,i)+0.5d0)/cellz)
        cell=(ix*maxj+jy)*maxk+kz
        !
        ! Loop over neighbouring cells
@@ -89,10 +128,7 @@ Contains
                 iti = iatype(i)
                 itj = iatype(j)
                 nit = itp(iti,itj)
-                rdd(:) = r(i,:)-r(j,:)
-!!$                Where (rdd(:) > side2(:)) rdd(:) = rdd(:) -side(:)
-!!$                Where (rdd(:) < -side2(:)) rdd(:) = rdd(:) + side(:)
-!!$                rd2 = Dot_product(rdd(:),rdd(:))
+                rdd(:) = R(:,i)-R(:,j)
                 rd2 = dist2(rdd)
                 If (rd2 < rc2(nit)) Then
                    rr =Sqrt(rd2)
@@ -100,19 +136,13 @@ Contains
 ! Use smooth cubic interpolation with coefficients as suggested by
 ! Paul Breeuwsma
 !
-                   xmu = rr/dr
+                   xmu = rr*idr
                    ir = int(xmu)
                    mu = xmu-ir
                    mu2 = mu*mu
-                   y0 = utab(ir-1,nit)
-                   y1 = utab(ir,nit)
-                   y2 = utab(ir+1,nit)
-                   y3 = utab(ir+2,nit)
-                   a0 = -0.5d0*y0 + 1.5d0*y1 - 1.5d0*y2 + 0.5d0*y3
-                   a1 = y0 - 2.5d0*y1 + 2*y2 - 0.5d0*y3
-                   a2 = -0.5d0*y0 + 0.5d0*y2
-                   a3 = y1
-                   eng = eng+a0*mu*mu2+a1*mu2+a2*mu+a3
+                   y(0:3) = utab(ir-1:ir+2,nit)
+                   a= matmul(am,y)
+                   eng = eng+(a(0)*mu+a(1))*mu2+a(2)*mu+a(3)
                 End If
                 nop=nop+1
              end if
@@ -122,26 +152,30 @@ Contains
     end Do
     eng = eng/2
     E_sr = eng
-    !Write(*,'(80("-")/" vdW Energy=",g15.7,1x,a2)')eng,units
+    !Write(*,'(80("-")/" **vdW Energy=",g15.7,1x,a2)')eng,units
     eng_f = 0
     if (elect) then
        !
        !  Calculate Fourier component of Ewald sum
        !
-       call fourier(eng_f)
+       if (fou_type == 1) then
+          call fourier(eng_f)
+       else
+          call four_pme(eng_f)
+       endif
        Etotal = E_sr+eng_f+selfe
        E_coulomb = eng_f+selfe
        E_Fourier = eng_f
        !write(*, '(" K cutoff",f10.5," 1/A")')rcpcut
        !write(*, '(" Coulomb energy (self energy) ",g15.7,1x,a2)') selfe, units
-       !write(*, '(" Coulomb energy (Fourier term)",g15.7,1x,a2)') eng_f, units
+       !write(*, '(" **Coulomb energy (Fourier term)",g15.7,1x,a2)') eng_f, units
        !write(*, '(" Coulomb energy ",g15.7,1x,a2)') selfe+eng_f,units
        !write(*, '(" E_sr =",g15.7,1x,a2)') E_sr, units
        !write(*, '(" Deviation from charge neutrality =",g15.7)') qtotal
     endif
     !Write(*, '(" Etotal =",g15.7,1x,a2/80("-"))') selfe+eng_f+eng,units
 
-  End Subroutine energ_cell
+  End Subroutine energ_cell_int
 
 
   Subroutine fourier(eng_f)
@@ -151,8 +185,8 @@ Contains
     use configuration
     use potential
     Implicit None
-    Real(wp), Intent(out) :: eng_f
-    Real(wp) :: ax, bx, cx, eng_f1, eng_f2
+    Real(dkind), Intent(out) :: eng_f
+    Real(wp) :: ax, bx, cx
     Complex (wp) :: rhok
     Integer :: i, k, kx, ky, kz
     ! Use only on orthogonal cells !!!!
@@ -162,9 +196,9 @@ Contains
     ! eix, eiy, eiz only change with volume for rigid molecules  
     ! or flexible if we do not scale the molecule with the volume
     ! otherwise they remain constant with volume changes, in this case they only need to be computed once
-    eix(1:natoms,1) = Exp(ii*dospix*r(1:natoms,1)*r_unit(1))   
-    eiy(1:natoms,1) = Exp(ii*dospiy*r(1:natoms,2)*r_unit(2))
-    eiz(1:natoms,1) = Exp(ii*dospiz*r(1:natoms,3)*r_unit(3))
+    eix(1:natoms,1) = Exp(ii*dospix*R(1,1:natoms)*r_unit(1))   
+    eiy(1:natoms,1) = Exp(ii*dospiy*R(2,1:natoms)*r_unit(2))
+    eiz(1:natoms,1) = Exp(ii*dospiz*R(3,1:natoms)*r_unit(3))
     eix(1:natoms,-1) =  Conjg(eix(1:natoms,1))
     eiy(1:natoms,-1) =  Conjg(eiy(1:natoms,1))
     !
@@ -227,5 +261,72 @@ Contains
     eng_f = 2*eng_f*pi2*ctr/v0
   End Subroutine fourier
 
+    Subroutine four_pme(eng_f)
+    !
+    !  Routine to determine Fourier component of Ewald summation
+    !
+    use configuration
+    use potential
+    Implicit None
+    Real(dkind), Intent(out) :: eng_f
+    Real(wp) :: ax, bx, cx
+    Complex (wp) :: rhok
+    Integer :: i, k, kx, ky, kz
+    ! Use only on orthogonal cells !!!!
+    ! Initialize matrices containing Exp(i*2pi*(kx/Lx+ky/Ly+kz/Lz))
+    ! Unreduce atomic coordinates
+
+    ! eix, eiy, eiz only change with volume for rigid molecules  
+    ! or flexible if we do not scale the molecule with the volume
+    ! otherwise they remain constant with volume changes, in this case they only need to be computed once
+    eng_f = 0.0d0
+    !
+    ! A factor 2 appears due to the symmetry simplifications
+    !
+    eng_f = 2*eng_f*pi2*ctr/v0
+  End Subroutine four_pme
+
+  Subroutine Eshort_r(f,eng)
+    use linkcell
+    implicit none
+    Integer :: i,j, iti, itj, ix, jy, kz, cell, icell, nit
+    real(dkind), intent(INOUT) ::  eng
+    Real(wp) :: rdd(ndim), rd2, rr
+    Real(wp), external :: dist2, f
+    !
+    ! Calculate pairwise energieos 
+    !
+    eng = 0
+    Do i = 1, natoms
+       !
+       ! Locate cell
+       !
+       ix=int((R(1,i)+0.5d0)/cellx)
+       jy=int((R(2,i)+0.5d0)/celly)
+       kz=int((R(3,i)+0.5d0)/cellz)
+       cell=(ix*maxj+jy)*maxk+kz
+       !
+       ! Loop over neighbouring cells
+       !
+       do icell = 1, nn
+          j = head(neigh(cell,icell))
+          do while (j .ne. 0)
+             if (j.ne.i) then
+                iti = iatype(i)
+                itj = iatype(j)
+                nit = itp(iti,itj)
+                rdd(:) = R(:,i)-R(:,j)
+                rd2 = dist2(rdd)
+                If (rd2 < rc2(nit)) Then
+                   eng = eng + f(rd2,nit)
+                End If
+             end if
+             j = list(j)
+          End Do
+       End Do
+    end Do
+    eng = eng/2
+  end Subroutine Eshort_r
 
 End Module Energy
+

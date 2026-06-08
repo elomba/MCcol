@@ -1,0 +1,5 @@
+pair_style lj/cut/coul/long  9.0 9.0
+pair_coeff 1 1 0.24 3.4
+pair_coeff 1 2 0.10 3.4
+pair_coeff 2 2 0.30 3.4
+#pair_modify shift yes

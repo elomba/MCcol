@@ -1,0 +1,19 @@
+.false.
+"lmp"
+2 4608                  ! No. of species, no. of atoms
+1 "Si"  1.3                ! Names of species
+2 "O"  -0.65
+"eV"                    ! Energy units, Interaction (mors/lj)
+2 2 "mors" !! i j type
+0.023272  1.3731  3.791  9.0   !! O-O  a b c rc (Morse parameters + cutoff)
+1 2 "mors" !! O-Si
+1.99597   2.6518  1.628  9.0  "mors" !! O-Si
+1 1 "mors" !! Si-Si
+0.007695  2.0446  3.7598 9.0  !! Si-Si
+.true.          ! elect, if .true. electrostatics is computed using Ewald
+0.35 10 10 20   ! kappa, kx, ky, kz ! Ewald parameters (cutoff is taken as the largest cutoff of the non-elect. interactions)
+
+
+
+
+

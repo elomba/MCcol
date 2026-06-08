@@ -5,15 +5,16 @@ Module Moving
   Use rundata
   Use properties
 Contains 
-  Subroutine moven
+  Subroutine moven(f)
     !
     ! Brute force move routine for displacement moves.
     !
     Implicit None
     Integer :: ntest, i, iti, itj, nit
-    Real (wp), External :: fpot
-    Real (wp) :: rdd(ndim), rddn(ndim), rp(ndim), harvest(0:ndim), eng0, eng1
-    Real (wp) :: rr, rd2, rdn2, deltaE, deltaFour, deltaEt, xi
+    Real (dkind) :: eng0, eng1, deltaE, deltaFour, deltaEt
+    Real (wp), External :: f
+    Real (wp) :: rdd(ndim), rddn(ndim), rp(ndim), harvest(0:ndim)
+    Real (wp) :: rr, rd2, rdn2, xi
     Real (wp), external :: dist2
     ntrial = ntrial+1
     ! Choose randomly particle to move
@@ -22,7 +23,7 @@ Contains
     !
     !
     !
-    rp(1:ndim) = r(ntest,1:ndim)+rdmax(1:ndim)*(2*harvest(1:ndim)-1)/r_unit(1:ndim)
+    rp(1:ndim) = R(1:ndim,ntest)+rdmax(1:ndim)*(2*harvest(1:ndim)-1)/r_unit(1:ndim)
     !
     ! Recalculate trial movement according to periodic boundary conditions
     where (rp(:) < -0.5d0) rp(:)=rp(:)+1
@@ -36,23 +37,27 @@ Contains
     do while (i<natoms)
        i=i+1
        if (i .eq. ntest) cycle
-       rdd(:) = r(i,:)-r(ntest,:)
-       rddn(:) = r(i,:)-rp(:)
+       rdd(:) = R(:,i)-R(:,ntest)
+       rddn(:) = R(:,i)-rp(:)
        rd2 = dist2(rdd)
        iti = iatype(i)
        itj = iatype(ntest)
        nit = itp(iti,itj)
        If (rd2 < rc2(nit)) Then
-          eng0 = eng0 + fpot(rd2,nit)
+          eng0 = eng0 + f(rd2,nit)
        End If
        rdn2 = dist2(rddn)
        If (rdn2 < rc2(nit)) Then
-          eng1 = eng1 + fpot(rdn2,nit)
+          eng1 = eng1 + f(rdn2,nit)
        End If
     End Do
     deltaE = eng1-eng0
     if (elect) then
-       Call change_fourier(ntest,rp,deltaFour)
+       if (fou_type == 1) then
+          Call change_fourier(ntest,rp,deltaFour)
+       else
+          Call change_pme(ntest,rp,deltaFour)
+       endif
     else
        deltaFour = 0.0d0
     endif
@@ -61,7 +66,7 @@ Contains
     ! Check acceptance
     !
     If (deltaEt < 0) Then
-       r(ntest,:) = rp(:)
+       R(:,ntest) = rp(:)
        E_sr = E_sr+deltaE
        if (elect) then
           E_Fourier = E_Fourier+deltaFour
@@ -73,8 +78,8 @@ Contains
        naccept = naccept+1
     Else 
        Call Random_number(xi)
-       If (Exp(-deltaEt/kT) .Gt. xi) Then
-          r(ntest,:) = rp(:)
+       If (Exp(-deltaEt) .Gt. xi) Then
+          R(:,ntest) = rp(:)
           E_sr = E_sr+deltaE
           if (elect) then
              E_Fourier = E_Fourier+deltaFour
@@ -94,12 +99,15 @@ Contains
     !
     use linkcell
     use interp
+    use cells, only : update_cell_list
     Implicit None
     Integer :: ntest, i, j, k, icell, iti, itj, cell, nit
+    Real (dkind) :: eng0, eng1, deltaE, deltaFour, deltaEt
     real (wp), external :: f
-    Real (wp) :: rdd(ndim), rddn(ndim), rp(ndim), harvest(0:ndim), eng0, eng1
-    Real (wp) :: rr, rd2, rdn2, deltaE, deltaFour, deltaEt, xi
+    Real (wp) :: rdd(ndim), rddn(ndim), rp(ndim), harvest(0:ndim)
+    Real (wp) :: rr, rd2, rdn2, xi, r6,r_unit2(3)
     Real (wp), external :: dist2
+    r_unit2(:) = r_unit(:)*r_unit(:)
     ntrial = ntrial+1
     ! Choose randomly particle to move
     Call Random_number(harvest(0:ndim))
@@ -107,7 +115,7 @@ Contains
     !
     !
     !
-    rp(1:ndim) = r(ntest,1:ndim)+rdmax(1:ndim)*(2*harvest(1:ndim)-1)/r_unit(1:ndim)
+    rp(1:ndim) = R(1:ndim,ntest)+rdmax(1:ndim)*(2*harvest(1:ndim)-1)/r_unit(1:ndim)
     !
     ! Recalculate trial movement according to periodic boundary conditions
     where (rp(:) < -0.5d0) rp(:)=rp(:)+1
@@ -135,16 +143,18 @@ Contains
              iti = iatype(i)
              itj = iatype(ntest)
              nit = itp(iti,itj)
-             rdd(:) = r(i,:)-r(ntest,:)
-             rddn(:) = r(i,:)-rp(:)
-             rd2 = dist2(rdd)
-             If (rd2 < rmin2(nit)) Return
-             If (rd2 < rc2(nit)) Then
-                eng0 = eng0 + fpot(rd2,nit)
-             End If
+             rddn(1:ndim) = R(1:ndim,i)-rp(1:ndim)
              rdn2 = dist2(rddn)
+             If (rdn2 < rmin2(nit)) then
+                Return
+             endif
              If (rdn2 < rc2(nit)) Then
-                eng1 = eng1 + fpot(rdn2,nit)
+                eng1 = eng1 + f(rdn2,nit)
+             End If
+             rdd(1:ndim) = R(1:ndim,i)-R(1:ndim,ntest)
+             rd2 = dist2(rdd)
+             If (rd2 < rc2(nit)) Then
+                eng0 = eng0 + f(rd2,nit)
              End If
           end if
           i=list(i)
@@ -152,7 +162,11 @@ Contains
     end Do
     deltaE = eng1-eng0
     if (elect) then
-       Call change_fourier(ntest,rp,deltaFour)
+       if (fou_type == 1) then
+          Call change_fourier(ntest,rp,deltaFour)
+       else
+          Call change_pme(ntest,rp,deltaFour)
+       endif
     else
        deltaFour = 0.0d0
     endif
@@ -161,7 +175,9 @@ Contains
     ! Check acceptance
     !
     If (deltaEt < 0) Then
-       r(ntest,:) = rp(:)
+       ! Check for particle leaving cell and update cell list
+       call update_cell_list(ntest,cell)
+       R(:,ntest) = rp(:)
        E_sr = E_sr+deltaE
        if (elect) then
           E_Fourier = E_Fourier+deltaFour
@@ -173,8 +189,10 @@ Contains
        naccept = naccept+1
     Else 
        Call Random_number(xi)
-       If (Exp(-deltaEt/kT) .Gt. xi) Then
-          r(ntest,:) = rp(:)
+       If (Exp(-deltaEt) .Gt. xi) Then
+          ! Check for particle leaving cell and update cell list
+          call update_cell_list(ntest,cell)
+          R(:,ntest) = rp(:)
           E_sr = E_sr+deltaE
           if (elect) then
              E_Fourier = E_Fourier+deltaFour
@@ -196,11 +214,14 @@ Contains
     use interp
     use cells, only : update_cell_list, build_cells
     Implicit None
+    Real (dkind) :: eng0, eng1, deltaE, deltaFour, deltaEt
     Integer :: ntest, i, j, k, icell, iti, itj, cell, nit, ir
-    Real (wp) :: rdd(ndim), rddn(ndim), rp(ndim), harvest(0:ndim), eng0, eng1
-    Real (wp) :: y0, y1, y2, y3, a0, a1, a2, a3
-    Real (wp) :: rr, rd2, rdn2, deltaE, deltaFour, deltaEt, xi, mu, mu2, xmu
+    Real (wp) :: rdd(ndim), rddn(ndim), rp(ndim), harvest(0:ndim)
+    Real (wp) :: y(0:3), a(0:3)
+    Real (wp) :: rr, rd2, rdn2, xi, mu, mu2, xmu
     Real (wp), external :: dist2
+    logical :: overlap
+    overlap = .false.
     ntrial = ntrial+1
     ! Choose randomly particle to move
     Call Random_number(harvest(0:ndim))
@@ -208,7 +229,7 @@ Contains
     !
     ! rescale displacement to box length units
     !
-    rp(1:ndim) = r(ntest,1:ndim)+rdmax(1:ndim)*(2*harvest(1:ndim)-1)/r_unit(1:ndim)
+    rp(1:ndim) = R(1:ndim,ntest)+rdmax(1:ndim)*(2*harvest(1:ndim)-1)/r_unit(1:ndim)
     !
     ! Recalculate trial movement according to periodic boundary conditions
     where (rp(:) < -0.5d0) rp(:)=rp(:)+1
@@ -231,71 +252,61 @@ Contains
     !
     Do icell = 1, nn
        i = head(neigh(cell,icell))
-!       write(18,*) i,j
        do while (i .ne. 0)
           if (i.ne.ntest) then
              iti = iatype(i)
              itj = iatype(ntest)
              nit = itp(iti,itj)
-             rdd(:) = r(i,:)-r(ntest,:)
-             rddn(:) = r(i,:)-rp(:)
-!!$             Where (rdd(:) > side2(:)) rdd(:) = rdd(:) -side(:)
-!!$             Where (rdd(:) < -side2(:)) rdd(:) = rdd(:) + side(:)
-!!$             rd2 = Dot_product(rdd(:),rdd(:))
+             rdd(:) = R(:,i)-R(:,ntest)
+             rddn(:) = R(:,i)-rp(:)
              rd2 = dist2(rdd)
-             if (rd2 < rmin2(nit)) return
+
+             if (rd2 < rmin2(nit)) then
+                overlap = .true.
+                exit
+             endif
              If (rd2 < rc2(nit)) Then
                 rr =Sqrt(rd2)
-!
-! Use smooth cubic interpolation with coefficients as suggested by
-! Paul Breeuwsma (http://paulbourke.net/miscellaneous/interpolation/)
-!
-                xmu = rr/dr
+                !
+                ! Use smooth cubic interpolation with coefficients as suggested by
+                ! Paul Breeuwsma (http://paulbourke.net/miscellaneous/interpolation/)
+                !
+                xmu = rr*idr
                 ir = int(xmu)
                 mu = xmu-ir
                 mu2 = mu*mu
-                y0 = utab(ir-1,nit)
-                y1 = utab(ir,nit)
-                y2 = utab(ir+1,nit)
-                y3 = utab(ir+2,nit)
-                a0 = -0.5d0*y0 + 1.5d0*y1 - 1.5d0*y2 + 0.5d0*y3
-                a1 = y0 - 2.5d0*y1 + 2*y2 - 0.5d0*y3
-                a2 = -0.5d0*y0 + 0.5d0*y2
-                a3 = y1
-                eng0 = eng0+a0*mu*mu2+a1*mu2+a2*mu+a3
+                y(0:3) = utab(ir-1:ir+2,nit)
+                a= matmul(am,y)
+                eng0 = eng0+(a(0)*mu+a(1))*mu2+a(2)*mu+a(3)
              End If
-!!$             Where (rddn(:) > side2(:)) rddn(:) = rddn(:) -side(:)
-!!$             Where (rddn(:) < -side2(:)) rddn(:) = rddn(:) + side(:)
-!!$             rdn2 = Dot_product(rddn(:),rddn(:))
              rdn2 = dist2(rddn)
              If (rdn2 < rc2(nit)) Then
                 rr =Sqrt(rdn2)
-!
-! Use smooth cubic interpolation with coefficients as suggested by
-! Paul Breeuwsma
-!
-                xmu = rr/dr
+                !
+                ! Use smooth cubic interpolation with coefficients as suggested by
+                ! Paul Breeuwsma
+                !
+                xmu = rr*idr
                 ir = int(xmu)
                 mu = xmu-ir
                 mu2 = mu*mu
-                y0 = utab(ir-1,nit)
-                y1 = utab(ir,nit)
-                y2 = utab(ir+1,nit)
-                y3 = utab(ir+2,nit)
-                a0 = -0.5d0*y0 + 1.5d0*y1 - 1.5d0*y2 + 0.5d0*y3
-                a1 = y0 - 2.5d0*y1 + 2*y2 - 0.5d0*y3
-                a2 = -0.5d0*y0 + 0.5d0*y2
-                a3 = y1
-                eng1 = eng1+a0*mu*mu2+a1*mu2+a2*mu+a3
+                y(0:3) = utab(ir-1:ir+2,nit)
+                a= matmul(am,y)
+                eng1 = eng1+(a(0)*mu+a(1))*mu2+a(2)*mu+a(3) 
              End If
           end if
           i=list(i)
        End Do
     end Do
+    if (overlap) return
     deltaE = eng1-eng0
     if (elect) then
-       Call change_fourier(ntest,rp,deltaFour)
-    else
+       if (fou_type == 1) then
+          Call change_fourier(ntest,rp,deltaFour)
+       else
+          Call change_pme(ntest,rp,deltaFour)
+       endif
+       else
        deltaFour = 0.0d0
     endif
     deltaEt = deltaE+deltaFour
@@ -305,7 +316,7 @@ Contains
     If (deltaEt < 0) Then
        ! Check for particle leaving the cell and update cell list
        call update_cell_list(ntest,cell)
-       r(ntest,:) = rp(:)
+       R(:,ntest) = rp(:)
        E_sr = E_sr+deltaE
        if (elect) then
           E_Fourier = E_Fourier+deltaFour
@@ -317,10 +328,10 @@ Contains
        naccept = naccept+1
     Else 
        Call Random_number(xi)
-       If (Exp(-deltaEt/kT) .Gt. xi) Then
+       If (Exp(-deltaEt) .Gt. xi) Then
           ! Check for particle leaving cell and update cell list
           call update_cell_list(ntest,cell)
-          r(ntest,:) = rp(:)
+          R(:,ntest) = rp(:)
           E_sr = E_sr+deltaE
           if (elect) then
              E_Fourier = E_Fourier+deltaFour
@@ -332,8 +343,6 @@ Contains
           endif
        Endif
     End If
-  !     call build_cells
-
   End Subroutine move_link_int
 
   Subroutine change_fourier(n,rtry,deltaf)
@@ -344,11 +353,11 @@ Contains
     Implicit None
     Integer, Intent(in) :: n
     Real(wp), Intent(in) :: rtry(ndim)
-    Real(wp), Intent(out) :: deltaf
+    Real(dkind), Intent(out) :: deltaf
     Integer :: kx, ky, kz, k
     Real (wp) :: rold(ndim)
     Complex (wp) :: deltannp, deltannpm
-    rold(1:ndim) = r(n,1:ndim)
+    rold(1:ndim) = R(1:ndim,n)
     !
     ! Initialize matrices containing Exp(i*2pi*(kx/Lx+ky/Ly+kz/Lz)) for test particle
     ! Unreduce test position coordinates
@@ -421,6 +430,29 @@ Contains
     deltaf = 2*deltaf*pi2*ctr/v0
   End Subroutine change_fourier
 
+    Subroutine change_pme(n,rtry,deltaf)
+    !
+    ! Compute change of Fourier component of potential energy when
+    ! moving one particle 
+    !
+    Implicit None
+    Integer, Intent(in) :: n
+    Real(wp), Intent(in) :: rtry(ndim)
+    Real(dkind), Intent(out) :: deltaf
+    Integer :: kx, ky, kz, k
+    Real (wp) :: rold(ndim)
+    Complex (wp) :: deltannp, deltannpm
+    rold(1:ndim) = R(1:ndim,n)
+    !
+    ! Initialize matrices containing Exp(i*2pi*(kx/Lx+ky/Ly+kz/Lz)) for test particle
+    ! Unreduce test position coordinates
+    deltaf = 0
+    !
+    ! A factor 2 appears due to the symmetry simplifications
+    !
+    deltaf = 2*deltaf*pi2*ctr/v0
+  End Subroutine change_pme
+
 End Module Moving
 
 
@@ -430,22 +462,52 @@ Subroutine move_natoms(natoms)
   ! Routine to move natoms sequentially 
   !
   Use set_precision
-  use Moving, only : move_link_int, moven
+  use Moving, only : move_link_int, move_linkcell, moven
   use linkcell, only : use_cell
+  use potential, only : kint, elect, fou_type
+  use configuration, only : qsp
   implicit none
+  real(wp), external :: fpot_elecMorse, fpot_elecLJ, fpot_LJ, fpot_Morse
   integer, intent(IN) :: natoms
   integer :: i
+  
   do i=1,natoms
      if (use_cell) then
         !
         ! Use link cells and interpolations in the energy
         !
-        call move_link_int
+        !call move_link_int
+        if (elect ) then
+           if (kint == 1) then
+              call move_linkcell(fpot_elecMorse)
+           else
+              call move_linkcell(fpot_elecLJ)
+           endif
+        else
+           if (kint == 1) then
+              call move_linkcell(fpot_Morse)
+           else
+              call move_linkcell(fpot_LJ)
+           endif
+        endif
      else
         !
         ! Simple move with explicit evaluations
-        ! 
-        call moven
-     end if
+        !
+        if (elect ) then
+           if (kint == 1) then
+              call moven(fpot_elecMorse)
+           else
+              call moven(fpot_elecLJ)
+           endif
+        else
+           if (kint == 1) then
+              call moven(fpot_Morse)
+           else
+              call moven(fpot_LJ)
+           end if
+        endif
+     endif
   end do
 end subroutine move_natoms
+

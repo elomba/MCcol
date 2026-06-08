@@ -1,0 +1,126 @@
+# Mixture: IL + Solvent
+
+
+units  metal                      # Kcal/mol
+atom_style full
+#kspace_style pppm    1.0e-4
+kspace_style ewald    1.0e-4
+#kspace_style none
+
+ 
+# Read data: Initial configuration
+
+read_data data.atoms
+
+# Parameters
+
+variable Nrun equal 10                 #2000000
+variable Nsnaps equal 10
+variable Nequil equal 80                 #1000000
+variable Nf equal 10
+variable Ne equal 1
+variable Nr equal ${Nf}/${Ne}
+variable Ndump equal ${Nrun}/${Nsnaps}
+variable Nr_rdf equal 0.5*${Nrun}/${Ne}
+variable nAtoms equal atoms
+variable Text equal 400.0  #66666666              # Temperature
+variable Pext equal 1    #55555555              # Pressure
+variable tstep equal 0.00050                # Time step (fs)
+
+
+group A type 1
+group B type 2
+group C type 3
+group TOTAL type 1 2 3
+
+
+variable nA equal count(A)
+variable nB equal count(B)
+variable nC equal count(C)
+
+variable nMolecules equal count(TOTAL)
+variable myvol equal vol
+
+
+timestep ${tstep}
+
+#velocity all create ${Text} 1234
+
+# These quantities enter in the fix npt in time units, it is advisable that the first covers 100 timesteps and the second 1000
+variable Tdamp equal 100*${tstep}
+variable Pdamp equal 1000*${tstep}
+
+
+# Define force field
+
+include forcefield.lj
+
+
+# Check neighbor least every time a molecule leaves a skin of 0.3 away from the neighbor radious
+
+neighbor 0.3 bin
+neigh_modify every 20 delay 0 check no    
+
+
+
+
+
+#fix integrate all npt temp ${Text} ${Text} ${Tdamp} iso ${Pext} ${Pext} ${Pdamp}
+
+#fix integrate all nve
+
+fix removeMomentum all momentum 1 linear 1 1 1
+thermo_style custom step temp pe ke evdwl  epair ecoul  elong etotal press
+thermo_modify flush yes
+thermo ${Nf}
+#fix integrate all nve limit 0.1
+
+#run 5000
+
+#unfix integrate
+
+fix integrate all nvt temp ${Text} ${Text} ${Tdamp}
+
+run ${Nequil}
+#write_restart restartP_${Pext}_T_${Text}.equil
+
+#unfix integrate
+#fix integrate all nve
+
+compute T all temp
+fix TempAve all ave/time ${Ne} ${Nr} ${Nf} c_T 
+
+variable P equal press
+fix PressAve all ave/time ${Ne} ${Nr} ${Nf} v_P
+
+compute PE all pe pair kspace
+variable PE_Mol equal c_PE/v_nMolecules
+fix PEAve_Mol all ave/time ${Ne} ${Nr} ${Nf} v_PE_Mol
+
+compute r2t all msd
+fix msd1 all ave/time 1 2000 2000 c_r2t[4] file                 &
+msd_P_${Pext}_T_${Text}.profile 
+
+
+variable densidad equal ${nMolecules}/${myvol}
+variable myvol equal vol
+
+compute myke all ke
+fix avtem all ave/time 1 2000 2000 c_thermo_temp c_thermo_press &
+c_thermo_pe c_myke v_myvol v_densidad file outvars_P_${Pext}_T_${Text}.profile 
+
+compute myRDF all rdf 500 1 1 
+fix crdf all ave/time 1 ${Nr_rdf} ${Nrun} c_myRDF[*] file          &
+gr_P_${Pext}_T_${Text}.rdf mode vector
+
+#dump trj all custom ${Ndump} mWP_${Pext}_T_${Text}.lammpstrj id    &
+#type mol x y z vx vy vz
+
+run ${Nrun}
+
+write_restart restart_P_${Pext}_T_${Text}.mix
+
+dump trj all custom 1 last.conf id mol   &
+type q  x y z 
+dump_modify trj sort id format line "%d %d %d %8.4f %18.10f %18.10f %18.10f"
+run 0

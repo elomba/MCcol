@@ -22,14 +22,14 @@ module potential
     !
     Use set_precision
     Implicit None
-    Character :: units*2
+    Character :: units*8
     Character, dimension(:), allocatable :: pot*4
     Integer, dimension(:), allocatable :: keyp
-    Integer :: kmt, kmx, kmy, kmz, nitmax
+    Integer :: kmt, kmx, kmy, kmz, nitmax, kint
     Integer, Dimension(:,:), Allocatable :: itp
     Real (wp) :: dospix, dospiy, dospiz, rcpcut, rcpcut2
     Real(wp), Dimension(:,:), Allocatable :: aa, bb, cc, rc
-    Real(wp), Dimension(:), Allocatable :: km2, ekm2, kr, rc2, al, bl, cl, bl2, qprod
+    Real(wp), Dimension(:), Allocatable :: km2, ekm2, kr, rc2, al, bl, cl, bl2, qprod, ucut
     Complex(wp), Dimension(:), Allocatable :: rhokk, deltann, einx, einy, einz
     Complex(wp), Dimension(:,:), Allocatable :: eix, eiy, eiz
     !
@@ -37,15 +37,20 @@ module potential
     !   constant in ev/K, ev2k, conversion factor from eV to K
     !
     Real(wp) :: ctr
-    Real(wp), Parameter :: ctreV= 14.39964361d0, pi&
-        &=3.141592653589793d0, kbeV=8.6173324d-5, ev2K=11604.58857702
+    Real(dkind), Parameter :: ctreV= 14.39964361d0, pi&
+        &=3.141592653589793d0, kbeV=8.6173324d-5, ev2K=11604.58857702&
+        &, ev2Kcal=23.06054195, kbKcal=0.001987191686
           ! Eva's change: parameters to convert pressure
     !      bar2eV: change units from bar to eV/Angstrom^3
     !      bar2K: change from bar to K/Angstrom^3
-    Real (wp), Parameter :: bar2eV = 0.624150932d-6, bar2K = 0.72429715652d-2
-    Real (wp) :: rcut, rcut2, kappa, selfe=0, qtotal, pi2
+    !      bar2Kcal: change from bar to Kcal/mol/Å³
+    Real (wp), Parameter :: bar2eV = 0.624150932d-6, bar2K =&
+         & 0.72429715652d-2, bar2Kcal=1.4393258781725146d-5   
+    Real (wp) :: rcut, rcut2, kappa,  qtotal
+    Real (dkind) :: selfe=0.0d0, pi2
     Complex (wp), Parameter :: ii=(0.0d0,1.0d0)
-    logical :: elect
+    logical :: elect, pshift
+    Integer :: fou_type
 end module potential
 
 Module rundata
@@ -60,14 +65,15 @@ Module rundata
     integer, parameter :: ioth=11 ! Thermal averages output
     integer, parameter :: iothi=12 ! Instantaneous therm quantities
     integer, parameter :: igr=13   ! output g(r)
-    integer, parameter :: ioh=14   ! histograms
+    integer, parameter :: ilong=20  ! length of data and results filenames
     logical :: restart
     Integer :: nb, nstep, istep, istep_ini=0, ntrial, naccept, nvaccept, naver, nequil, npgr, ntraj
     Real(wp) :: temp, kT, s_cput, e_cput
     Real(wp) :: rdmax(1:ndim)
     ! NpT ensemble (Eva's change)
     Real(wp) :: pres, vdmax
-    character :: ensemble*3, initcf*3, scaling*5, stat*10="sequential"
+    character :: ensemble*3, initcf*3, scaling*5, stat*10&
+         &="sequential", data_dir*ilong, res_dir*ilong 
 End Module rundata
 
 Module properties
@@ -76,14 +82,12 @@ Module properties
     !
     Use set_precision
     use configuration, only : ndim
-    Integer, Parameter :: nde=50000, nrmax=5000
-    Real(wp) :: Etotal, E_sr, E_coulomb, E_fourier, Eref, deltaEng, deltar, deltagr
-    Real(wp) :: Etav, E_sav, E_lrav
+    Real(dkind) :: Etav, E_sav, E_lrav, E_vdwav
+    Real(dkind) :: Etotal, E_sr, E_coulomb, E_fourier, Evdw
+    Real(dkind) :: virial
+    Real(dkind) :: Vol_av, side_av(1:ndim)
+    Real(wp) :: deltagr
      ! NpT ensemble (Eva's change)
-    Real(wp) :: Vol_av, side_av(1:ndim)
-    Real(wp) :: virial
-    Real(wp), Dimension(-nde:nde) :: Ehisto
-    Real(wp), Dimension(0:nrmax) :: rhisto
     Real(wp), Dimension(:,:,:), Allocatable :: gmix
     Integer, Dimension(:,:,:), Allocatable :: histomix
     Integer :: nmaxgr
@@ -94,10 +98,10 @@ Module linkcell
     ! Shared components in the link cell method
     !
     Use set_precision
-    Real (wp) :: cellx, celly, cellz, cellxo, cellyo, cellzo
-    Integer, Dimension(:,:), Allocatable:: neigh, neigho
-    Integer, Dimension(:), Allocatable :: head, list, heado, listo
-    Integer :: ncell, ncellmax=0, nn, maxi,maxj,maxk, ncello, nno, maxio,maxjo,maxko
+    Real (wp) :: cellx, celly, cellz
+    Integer, Dimension(:,:), Allocatable:: neigh
+    Integer, Dimension(:), Allocatable :: head, list
+    Integer :: ncell, nn, maxi,maxj,maxk
     logical :: use_cell=.true.
 End Module linkcell
   
@@ -107,8 +111,12 @@ module interp
     !
     Use set_precision
     real (wp), dimension(:,:), allocatable :: utab
-    real (wp), parameter :: dr=0.001d0
+    real (wp), parameter :: dr=0.001d0, idr=1000.0d0
     real (wp), dimension(:), allocatable :: rmin2
+    ! Interpolation matrix
+    real (wp), dimension(0:3,0:3) :: am=(/-0.5d0,1.0d0,-0.5d0,0.0d0&
+         &,1.5d0,-2.5d0,0.0d0,1.0d0,-1.5d0,2.0d0,0.5d0,0.0d0,0.5d0,&
+         &-0.5d0,0.0d0,0.0d0/)
     integer :: ncut
 end module interp
 
@@ -127,11 +135,26 @@ module interfaces
         subroutine printout(inst)
             logical, intent(IN) :: inst
         end subroutine printout
-        function fpot(rx,nit)
+        function fpot_Morse(rx,nit)
             use set_precision
-            real(wp) :: fpot, rx
+            real(wp) :: fpot_Morse, rx
             integer :: nit
-        end function fpot
+        end function fpot_Morse
+        function fpot_elecMorse(rx,nit)
+            use set_precision
+            real(wp) :: fpot_elecMorse, rx
+            integer :: nit
+        end function fpot_elecMorse
+        function fpot_LJ(rx,nit)
+            use set_precision
+            real(wp) :: fpot_LJ, rx
+            integer :: nit
+        end function fpot_LJ
+        function fpot_elecLJ(rx,nit)
+            use set_precision
+            real(wp) :: fpot_elecLJ, rx
+            integer :: nit
+        end function fpot_elecLJ
         Function dist2(r)
             Use set_precision
             Use configuration, Only : ndim

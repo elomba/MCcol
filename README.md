@@ -5,7 +5,6 @@
 <p><b> Team: MC-cool </b></p>
 <p> Members: </p>
 <ul>
-    <li>    Noé G. Almarza (noe@iqfr.csic.es)</li>
     <li>    Enrique Lomba (enrique.lomba@csic.es)</li>
     <li>    Eva G. Noya (eva.noya@iqfr.csic.es)</li>
     <li>	  Felipe J. Blas (felipe@uhu.es)</li>
@@ -18,7 +17,7 @@ Requisites
 ==========
 
 - ifort version 13.0 or higher
-- ecliple Luna
+- eclipse Luna
 
 Install
 =======

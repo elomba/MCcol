@@ -1,16 +1,17 @@
 .false.
 "dlp"
 2 4608                  ! No. of species, no. of atoms
-"O"   -0.65
- "Si"   1.3                ! Names of species
+1 "O"  -0.65
+2 "Si"  1.3                ! Names of species
 "eV"                    ! Energy units, Interaction (mors/lj)
-"mors"
-0.023272  1.3731  3.791  9.0  !! O-O  a b c rc (Morse parameters + cutoff)
-"mors"
-1.99597   2.6518  1.628  9.0  !! O-Si
-"mors"
+1 1 "mors" !! i j type
+0.023272  1.3731  3.791  9.0    !! O-O  a b c rc (Morse parameters + cutoff) Energy in Kcal/mol
+1 2 "morse" !! O-Si
+1.99597   2.6518  1.628  9.0     !! O-Si
+2 2 "morse" !! Si-Si
 0.007695  2.0446  3.7598 9.0  !! Si-Si
-0.35 10 10 20   ! kappa, kx, ky, kz ! Ewald parameters (cutoff is taken as the largest cutoff of the non-elect. interactions)
+.true.  .false.  2      ! elect, if .true. electrostatics is computed using Ewald, pshift, if true potential is cut and shifted, 1/2 Ewald/PME
+0.287184 15 15 15   ! kappa, kx, ky, kz ! Ewald parameters (cutoff is taken as the largest cutoff of the non-elect. interactions)
 
 
 

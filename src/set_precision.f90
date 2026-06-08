@@ -19,10 +19,10 @@
 ! see comments below for advice.
 !     INTEGER, PARAMETER:: qkind = ...
 ! Set the precision for the whole package
-      INTEGER, PARAMETER :: wp = dkind
+!      INTEGER, PARAMETER :: wp = dkind
 ! To change the default package precision to single precision change
 ! the parameter assignment to wp above to
-!     INTEGER, PARAMETER :: wp = skind
+     INTEGER, PARAMETER :: wp = skind
 ! and recompile the complete package.
 
 !-----------------------------------------------------------

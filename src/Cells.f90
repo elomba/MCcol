@@ -2,33 +2,6 @@ module cells
     use configuration, only : ndim, natoms, a, b, c, r
     use potential, only : rcut
 contains
-    subroutine store_cell
-        use linkcell
-        maxio = maxi
-        maxjo = maxj
-        maxko = maxk
-        ncello = ncell
-        neigho(:,:) = neigh(:,:)
-        heado(:) = head(:)
-        listo(:) = list(:)
-        cellxo = cellx
-        cellyo = celly
-        cellzo = cellz
-    end subroutine store_cell
-    subroutine restore_cell
-        use linkcell
-        maxi = maxio
-        maxj = maxjo
-        maxk = maxko
-        ncell = ncello
-        neigh(:,:) = neigho(:,:)
-        head(:) = heado(:)
-        list(:) = listo(:)
-        cellx = cellxo
-        celly = cellyo
-        cellz = cellzo
-    end subroutine restore_cell
-
     Subroutine Init_cell
         Use linkcell
         use rundata, only : rdmax
@@ -45,22 +18,7 @@ contains
         maxk= Int(c(3)/(rcut+rdmax(2)))
         ncell = maxi*maxj*maxk
         nn = 3**ndim
-        ! ncellmax is initialized to 0 in Definitions.f90
-        if ( ncell > ncellmax ) then
-            !
-            ! If already allocated this means that volume has changed too much
-            if (allocated(neigh)) then
-                deAllocate(neigho,heado)
-                deAllocate(neigh,head)
-            endif
-            ncellmax = 3*ncell
-            !
-            ! Allocate neighbor lists. link cell list, listo allocated in init_conf
-            ! or in load (when in a restart run)
-            !
-            Allocate(neigh(0:ncellmax-1,nn),head(0:ncellmax-1))
-            Allocate(neigho(0:ncellmax-1,nn),heado(0:ncellmax-1))
-        endif
+        Allocate(neigh(0:ncell-1,nn),head(0:ncell-1),list(natoms))
         cellx = 1.0d0/maxi
         celly = 1.0d0/maxj
         cellz = 1.0d0/maxk
@@ -114,9 +72,9 @@ contains
         head(:) = 0
         list(:) = 0
         do n = 1, natoms
-            i=int((r(n,1)+0.5d0)/cellx)
-            j=int((r(n,2)+0.5d0)/celly)
-            k=int((r(n,3)+0.5d0)/cellz)
+            i=int((R(1,n)+0.5d0)/cellx)
+            j=int((R(2,n)+0.5d0)/celly)
+            k=int((R(3,n)+0.5d0)/cellz)
             icell=(i*maxj+j)*maxk+k
             list(n) = head(icell)
             head(icell) = n
@@ -134,9 +92,9 @@ contains
         integer, intent(IN) :: ntest, icell
         integer :: i,j,k, io, ocell
         ! r contains old particle coordinates
-        i=int((r(ntest,1)+0.5d0)/cellx)
-        j=int((r(ntest,2)+0.5d0)/celly)
-        k=int((r(ntest,3)+0.5d0)/cellz)
+        i=int((R(1,ntest)+0.5d0)/cellx)
+        j=int((R(2,ntest)+0.5d0)/celly)
+        k=int((R(3,ntest)+0.5d0)/cellz)
         ocell=(i*maxj+j)*maxk+k
         ! Check if particle has left its cell
         if (icell .ne. ocell) then

@@ -11,7 +11,7 @@ Subroutine structure
   naver = naver+1
   Do i=1, natoms-1
      Do j=i+1, natoms
-        rd(:) = r(i,:)-r(j,:)
+        rd(:) = R(:,i)-R(:,j)
         rr2 = dist2(rd)
         If (rr2 < rcut2) Then
            ind = Nint(Sqrt(rr2)/deltagr)

@@ -4,28 +4,20 @@
 ! (single or multicomponent) with or without charges. Charges are
 ! treated using Ewald sums. The program implements a link cell
 ! algorithm if the sample size allows it.
-! Implemented ensembles: NVT, NpT (define in input as "npt"/"nvt")
+! Implemented ensembles: NVT
 !
-! When interrumpted or at the end of the run, the program dumps its current state in at
-! restart file name "results/dumpDATEHOUR.dmp". First record of file system.dat is the
-! logical variable restart. When set to .true. a file named "data/restar.dmp" will be read and the
-! simulation is restarted from a previous run using the dump file.
-!
-! Input data files --directory "data/" (see the files for parameter specifications) :
+! Input data files (see the files for parameter specifications) :
 !           system.dat : contains description of the system to be simulated
 !           runMC.dat :  contains specific parameters that control
 !                        the run
-!           CONFIG:      initial configuration in DLPOLY 2 format (to
-!                         be generalized)
-! Output files (directory "results/"):
+!
+!           CONFIG/data.atoms: initial configuration : DLPOLY 2 format (inpf="dlp" in runMc.dat)
+!                                                      LAMMPS data.atoms format (inpf="lmp" in runMc.dat)
+!                         
+! Output files:
 !           thermoaver.dat : thermodynamic averages
 !           thermoins.dat  : instantaneous thermodynamic quantities
 !           gmix.dat       : pair correlation functions
-!           rho_histo.dat  : density histogram (NPT simulations)
-!           E.histo.dat    : Energy histogram  (NVT simulations)
-!           traj.xyz       : Trajectory file
-!           last.xyz       : Last configuration
-!           CONFIG.last    : Last configuration in DLPOLY 2 format
 !
 ! Program units:
 !         Energy: "eV" electronVolts
@@ -40,8 +32,10 @@
 !
 !   An interpolation algorithm is used to evaluate interactions.
 !
-! E.G. Noya, E. Lomba, April, 2015
+!   Internal energy units reduced by kT, length units reduced by box size
 !
+! E.G. Noya, E. Lomba, April, 2015
+!                      September, 2021
 !
 Program gpMC
     !
@@ -54,18 +48,19 @@ Program gpMC
     !       keyp(nit) : integer array                      = 1 Morse
     !                   (one value for every interaction)  = 2 Lennard-Jones
     !
-    Use potential, Only : keyp
+    Use potential, Only : keyp, kint, elect
     ! Variables defining the system configuration
     Use configuration, Only : natoms
     ! Control parameters for the run
-    Use rundata, Only : restart, nequil, nstep, nb, ensemble, npgr, s_cput, ntraj, istep, istep_ini
+    Use rundata, Only : kT, restart, nequil, nstep, nb, ensemble, npgr,&
+         & s_cput, data_dir, ntraj, istep, istep_ini, iotrj, ilong 
     ! Initialization routies (including input of data)
     ! System properties
     Use properties
     ! Parameters that define link cells
     Use linkcell, Only : use_cell
     ! Interfaces to routines
-    Use interfaces, Only : move_natoms, histograms
+    Use interfaces, Only : move_natoms
     !
     !----------- Specific routines --------------------------
     !
@@ -75,9 +70,9 @@ Program gpMC
     ! Output routines
     Use Output, Only : Printout, init_printout, initout, run_info,&
         & printgr, end_printout, print_ener
-    Use WriteCfg, only : dump_trj, writecfg_dlp, writecfg_xyz
+    Use WriteCfg, only : dump_trj
     ! Routines to calculate the energy (with and without link cell).
-    Use Energy, Only : Energ, Energ_cell
+    Use Energy, Only : Energ, Energ_cell, Eshort_r
     ! Link cell routines
     Use Cells, Only : build_cells, init_cell
     ! routines to change the volume
@@ -86,11 +81,21 @@ Program gpMC
     Use Util, Only : cputime
     Implicit None
     Integer :: j, ntest
-    Real (wp) :: esrold, fourold
+    Real (dkind) :: esrold, fourold
+    Real (wp), external :: fpot_elecLJ, fpot_elecMorse, fpot_Morse, fpot_LJ
     ! Intercep kill signals for clean and orderly exit execution
     call catch()
     ! Get initial CPU time
     s_cput = cputime()
+        ! get command line arguments to set path to data files
+    if (command_argument_count() < 1) then
+       print *, '*** No command line arg provided: data directory default&
+            &s to "data/"'
+       data_dir='data'
+    else
+       call get_command_argument(1,data_dir)
+    endif
+
     !
     ! Initialize particle configuration
     !
@@ -111,22 +116,60 @@ Program gpMC
         !
         ! Initialize interpolation tables for pair potentials
         !
-        Call Init_interp
+        if (elect) then
+           if (kint == 1) then
+              Call Init_interp(fpot_elecMorse)
+           else
+              Call Init_interp(fpot_elecLJ)
+           endif
+        else
+           if (kint == 1) then
+              Call Init_interp(fpot_Morse)
+           else
+              Call Init_interp(fpot_LJ)
+           endif
+        endif
     endif
     !
     ! Initialize and build link cells (if possible), controlled by use_cell)
     !
-    Call Init_cell
+    if (use_cell) Call Init_cell
     !
     ! Print run specific info
     !
     call run_info
     if (use_cell) then
-        call build_cells
-        Call Energ_cell
+       call build_cells
+       if (elect) then
+           if (kint == 1) then
+              Call Energ_cell(fpot_elecMorse)
+              Call Eshort_r(fpot_Morse,Evdw)
+           else
+              Call Energ_cell(fpot_elecLJ)
+              Call Eshort_r(fpot_LJ,Evdw)
+           endif
+        else
+           if (kint == 1) then
+              Call Energ_cell(fpot_Morse)
+           else
+              Call Energ_cell(fpot_LJ)
+           endif
+        endif
     else
-        Call Energ
-    endif
+       if (elect) then
+           if (kint == 1) then
+              Call Energ(fpot_elecMorse)
+           else
+              Call Energ(fpot_elecLJ)
+           endif
+        else
+           if (kint == 1) then
+              Call Energ(fpot_Morse)
+           else
+              Call Energ(fpot_LJ)
+           endif
+        endif
+     endif
     call print_ener
     !
     ! Initialize printout
@@ -142,8 +185,8 @@ Program gpMC
     ! displacements at present )
     !
     Do istep=1+istep_ini, nstep+istep_ini
-        !   if (use_cell) call build_cells
-        Call move_natoms(natoms)
+       !   if (use_cell) call build_cells
+       Call move_natoms(natoms)
 
         !
         ! Insert here particle insertions/deletions, volume changes, etc ..
@@ -153,7 +196,6 @@ Program gpMC
         ! Perform averages when equilibration has been reached.
         !
         If (istep >= nequil) Then
-            Call histograms(ensemble)
             If (Mod(istep-istep_ini,npgr).Eq.0) Then
                 Call printgr
             Endif
@@ -161,38 +203,62 @@ Program gpMC
             ! Dump trajectory file if needed
             if (ntraj .ne. 0) then
                 if (mod(istep-istep_ini,ntraj) .Eq. 0) then
-                    call dump_trj(istep)
+                    call dump_trj(istep,iotrj)
                 endif
             endif
         End If
         If (Mod(istep-istep_ini,nb).Eq.0) Then
+           if (kint==1) then
+              call Eshort_r(fpot_Morse,Evdw)
+           else
+              call Eshort_r(fpot_LJ,Evdw)
+           endif
             If (istep > nequil) Then
                 Call Averages
                 Call structure
             Else
                 !
                 ! Print out instantaneous values.
-                !
+               !
                 Call Printout(.false.)
                !
             End If
         End If
-    End Do
+     End Do
     !
     ! Calculate energy from last configuration (consistency check).
     !
     if (use_cell) then
-        Call energ_cell
+       if (elect) then
+           if (kint == 1) then
+              Call Energ_cell(fpot_elecMorse)
+           else
+              Call Energ_cell(fpot_elecLJ)
+           endif
+        else
+           if (kint == 1) then
+              Call Energ_cell(fpot_Morse)
+           else
+              Call Energ_cell(fpot_LJ)
+           endif
+        endif
     else
-        Call energ
+       if (elect) then
+           if (kint == 1) then
+              Call Energ(fpot_elecMorse)
+           else
+              Call Energ(fpot_elecLJ)
+           endif
+        else
+           if (kint == 1) then
+              Call Energ(fpot_Morse)
+           else
+              Call Energ(fpot_LJ)
+           endif
+        endif
     Endif
     call print_ener
     Call end_printout
-    !
-    ! Print last configuration in DLPOLY format and .xyz
-    !
-    call writecfg_dlp
-    call writecfg_xyz(istep-1)
     ! Dump restart file
     call cierra(1)
 End Program gpMC

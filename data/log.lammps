@@ -1,0 +1,339 @@
+LAMMPS (3 Mar 2020)
+# Mixture: IL + Solvent
+
+
+units  metal                      # Kcal/mol
+atom_style full
+#kspace_style pppm    1.0e-4
+kspace_style ewald    1.0e-4
+#kspace_style none
+
+
+# Read data: Initial configuration
+
+read_data data.atoms
+  orthogonal box = (-30.6524 -30.6524 -30.6524) to (30.6524 30.6524 30.6524)
+  1 by 1 by 1 MPI processor grid
+  reading atoms ...
+  4608 atoms
+  0 = max # of 1-2 neighbors
+  0 = max # of 1-3 neighbors
+  0 = max # of 1-4 neighbors
+  1 = max # of special neighbors
+  special bonds CPU = 0.000426439 secs
+  read_data CPU = 0.00599956 secs
+
+# Parameters
+
+variable Nrun equal 10                 #2000000
+variable Nsnaps equal 10
+variable Nequil equal 80                 #1000000
+variable Nf equal 10
+variable Ne equal 1
+variable Nr equal ${Nf}/${Ne}
+variable Nr equal 10/${Ne}
+variable Nr equal 10/1
+variable Ndump equal ${Nrun}/${Nsnaps}
+variable Ndump equal 10/${Nsnaps}
+variable Ndump equal 10/10
+variable Nr_rdf equal 0.5*${Nrun}/${Ne}
+variable Nr_rdf equal 0.5*10/${Ne}
+variable Nr_rdf equal 0.5*10/1
+variable nAtoms equal atoms
+variable Text equal 400.0  #66666666              # Temperature
+variable Pext equal 1    #55555555              # Pressure
+variable tstep equal 0.00050                # Time step (fs)
+
+
+group A type 1
+1536 atoms in group A
+group B type 2
+3072 atoms in group B
+group C type 3
+0 atoms in group C
+group TOTAL type 1 2 3
+4608 atoms in group TOTAL
+
+
+variable nA equal count(A)
+variable nB equal count(B)
+variable nC equal count(C)
+
+variable nMolecules equal count(TOTAL)
+variable myvol equal vol
+
+
+timestep ${tstep}
+timestep 0.0005
+
+#velocity all create ${Text} 1234
+
+# These quantities enter in the fix npt in time units, it is advisable that the first covers 100 timesteps and the second 1000
+variable Tdamp equal 100*${tstep}
+variable Tdamp equal 100*0.0005
+variable Pdamp equal 1000*${tstep}
+variable Pdamp equal 1000*0.0005
+
+
+# Define force field
+
+include forcefield.lj
+pair_style lj/cut/coul/long  9.0 9.0
+pair_coeff 1 1 0.024 3.4
+pair_coeff 1 2 0.010 3.4
+pair_coeff 2 2 0.030 3.4
+pair_modify shift yes
+
+
+# Check neighbor least every time a molecule leaves a skin of 0.3 away from the neighbor radious
+
+neighbor 0.3 bin
+neigh_modify every 20 delay 0 check no
+
+
+
+
+
+#fix integrate all npt temp ${Text} ${Text} ${Tdamp} iso ${Pext} ${Pext} ${Pdamp}
+
+#fix integrate all nve
+
+fix removeMomentum all momentum 1 linear 1 1 1
+thermo_style custom step temp pe ke evdwl  epair ecoul  elong etotal press
+thermo_modify flush yes
+thermo ${Nf}
+thermo 10
+#fix integrate all nve limit 0.1
+
+#run 5000
+
+#unfix integrate
+
+fix integrate all nvt temp ${Text} ${Text} ${Tdamp}
+fix integrate all nvt temp 400 ${Text} ${Tdamp}
+fix integrate all nvt temp 400 400 ${Tdamp}
+fix integrate all nvt temp 400 400 0.05
+
+run ${Nequil}
+run 80
+Ewald initialization ...
+  using 12-bit tables for long-range coulomb (../kspace.cpp:332)
+  G vector (1/distance) = 0.287184
+  estimated absolute RMS force accuracy = 0.00168353
+  estimated relative force accuracy = 0.000116915
+  KSpace vectors: actual max1d max3d = 7073 15 14895
+                  kxmax kymax kzmax  = 15 15 15
+Neighbor list info ...
+  update every 20 steps, delay 0 steps, check no
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 9.3
+  ghost atom cutoff = 9.3
+  binsize = 4.65, bins = 14 14 14
+  1 neighbor lists, perpetual/occasional/extra = 1 0 0
+  (1) pair lj/cut/coul/long, perpetual
+      attributes: half, newton on
+      pair build: half/bin/newton
+      stencil: half/bin/3d/newton
+      bin: standard
+Per MPI rank memory allocation (min/avg/max) = 31.63 | 31.63 | 31.63 Mbytes
+Step Temp PotEng KinEng E_vdwl E_pair E_coul E_long TotEng Press 
+       0            0   -13558.397            0     1587.997   -13558.397   -6142.1631   -9004.2313   -13558.397    35117.346 
+      10    100.45688   -13617.986    59.822223     1513.928   -13617.986   -6128.1907   -9003.7235   -13558.164    33196.135 
+      20    314.49823   -13743.513    187.28416    1350.0071   -13743.513   -6091.6324    -9001.888   -13556.229    28887.945 
+      30    503.09732   -13853.719     299.5952    1187.5947   -13853.719    -6043.133   -8998.1808   -13554.124    24489.234 
+      40       607.68   -13915.736    361.87434    1067.0943   -13915.736   -5990.4297    -8992.401   -13553.862    21056.767 
+      50    636.09813   -13935.934    378.79739    985.28933   -13935.934   -5936.3558   -8984.8677   -13557.137    18550.753 
+      60    622.77115   -13934.337    370.86115    922.84037   -13934.337   -5880.8897   -8976.2876   -13563.476    16515.441 
+      70    601.90412   -13928.538     358.4348    862.30669   -13928.538     -5823.37    -8967.475   -13570.103    14539.096 
+      80    588.44691   -13926.823    350.42101    796.59783   -13926.823   -5764.3088   -8959.1123   -13576.402    12449.398 
+Loop time of 13.3063 on 1 procs for 80 steps with 4608 atoms
+
+Performance: 0.260 ns/day, 92.405 hours/ns, 6.012 timesteps/s
+100.0% CPU use with 1 MPI tasks x no OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.19185    | 0.19185    | 0.19185    |   0.0 |  1.44
+Bond    | 1.0258e-05 | 1.0258e-05 | 1.0258e-05 |   0.0 |  0.00
+Kspace  | 13.086     | 13.086     | 13.086     |   0.0 | 98.34
+Neigh   | 0.019772   | 0.019772   | 0.019772   |   0.0 |  0.15
+Comm    | 0.0025756  | 0.0025756  | 0.0025756  |   0.0 |  0.02
+Output  | 0.00027751 | 0.00027751 | 0.00027751 |   0.0 |  0.00
+Modify  | 0.0054557  | 0.0054557  | 0.0054557  |   0.0 |  0.04
+Other   |            | 0.000543   |            |       |  0.00
+
+Nlocal:    4608 ave 4608 max 4608 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    5390 ave 5390 max 5390 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    163405 ave 163405 max 163405 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 163405
+Ave neighs/atom = 35.4612
+Ave special neighs/atom = 0
+Neighbor list builds = 4
+Dangerous builds not checked
+#write_restart restartP_${Pext}_T_${Text}.equil
+
+#unfix integrate
+#fix integrate all nve
+
+compute T all temp
+fix TempAve all ave/time ${Ne} ${Nr} ${Nf} c_T
+fix TempAve all ave/time 1 ${Nr} ${Nf} c_T
+fix TempAve all ave/time 1 10 ${Nf} c_T
+fix TempAve all ave/time 1 10 10 c_T
+
+variable P equal press
+fix PressAve all ave/time ${Ne} ${Nr} ${Nf} v_P
+fix PressAve all ave/time 1 ${Nr} ${Nf} v_P
+fix PressAve all ave/time 1 10 ${Nf} v_P
+fix PressAve all ave/time 1 10 10 v_P
+
+compute PE all pe pair kspace
+variable PE_Mol equal c_PE/v_nMolecules
+fix PEAve_Mol all ave/time ${Ne} ${Nr} ${Nf} v_PE_Mol
+fix PEAve_Mol all ave/time 1 ${Nr} ${Nf} v_PE_Mol
+fix PEAve_Mol all ave/time 1 10 ${Nf} v_PE_Mol
+fix PEAve_Mol all ave/time 1 10 10 v_PE_Mol
+
+compute r2t all msd
+fix msd1 all ave/time 1 2000 2000 c_r2t[4] file                 msd_P_${Pext}_T_${Text}.profile
+fix msd1 all ave/time 1 2000 2000 c_r2t[4] file                 msd_P_1_T_${Text}.profile
+fix msd1 all ave/time 1 2000 2000 c_r2t[4] file                 msd_P_1_T_400.profile
+
+
+variable densidad equal ${nMolecules}/${myvol}
+variable densidad equal 4608/${myvol}
+variable densidad equal 4608/230400.000096014
+variable myvol equal vol
+
+compute myke all ke
+fix avtem all ave/time 1 2000 2000 c_thermo_temp c_thermo_press c_thermo_pe c_myke v_myvol v_densidad file outvars_P_${Pext}_T_${Text}.profile
+fix avtem all ave/time 1 2000 2000 c_thermo_temp c_thermo_press c_thermo_pe c_myke v_myvol v_densidad file outvars_P_1_T_${Text}.profile
+fix avtem all ave/time 1 2000 2000 c_thermo_temp c_thermo_press c_thermo_pe c_myke v_myvol v_densidad file outvars_P_1_T_400.profile
+
+compute myRDF all rdf 500 1 1
+fix crdf all ave/time 1 ${Nr_rdf} ${Nrun} c_myRDF[*] file          gr_P_${Pext}_T_${Text}.rdf mode vector
+fix crdf all ave/time 1 5 ${Nrun} c_myRDF[*] file          gr_P_${Pext}_T_${Text}.rdf mode vector
+fix crdf all ave/time 1 5 10 c_myRDF[*] file          gr_P_${Pext}_T_${Text}.rdf mode vector
+fix crdf all ave/time 1 5 10 c_myRDF[*] file          gr_P_1_T_${Text}.rdf mode vector
+fix crdf all ave/time 1 5 10 c_myRDF[*] file          gr_P_1_T_400.rdf mode vector
+
+#dump trj all custom ${Ndump} mWP_${Pext}_T_${Text}.lammpstrj id    #type mol x y z vx vy vz
+
+run ${Nrun}
+run 10
+Ewald initialization ...
+  using 12-bit tables for long-range coulomb (../kspace.cpp:332)
+  G vector (1/distance) = 0.287184
+  estimated absolute RMS force accuracy = 0.00168353
+  estimated relative force accuracy = 0.000116915
+  KSpace vectors: actual max1d max3d = 7073 15 14895
+                  kxmax kymax kzmax  = 15 15 15
+Neighbor list info ...
+  update every 20 steps, delay 0 steps, check no
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 9.3
+  ghost atom cutoff = 9.3
+  binsize = 4.65, bins = 14 14 14
+  2 neighbor lists, perpetual/occasional/extra = 1 1 0
+  (1) pair lj/cut/coul/long, perpetual
+      attributes: half, newton on
+      pair build: half/bin/newton
+      stencil: half/bin/3d/newton
+      bin: standard
+  (2) compute rdf, occasional, copy from (1)
+      attributes: half, newton on
+      pair build: copy
+      stencil: none
+      bin: none
+Per MPI rank memory allocation (min/avg/max) = 32.01 | 32.01 | 32.01 Mbytes
+Step Temp PotEng KinEng E_vdwl E_pair E_coul E_long TotEng Press 
+      80    588.44691   -13926.823    350.42101    796.59783   -13926.823   -5764.3088   -8959.1123   -13576.402    12449.398 
+      90    580.76692   -13928.576    345.84757    728.64175   -13928.576   -5705.5427   -8951.6753   -13582.729     10321.13 
+Loop time of 1.70187 on 1 procs for 10 steps with 4608 atoms
+
+Performance: 0.254 ns/day, 94.548 hours/ns, 5.876 timesteps/s
+100.0% CPU use with 1 MPI tasks x no OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0.034504   | 0.034504   | 0.034504   |   0.0 |  2.03
+Bond    | 1.254e-06  | 1.254e-06  | 1.254e-06  |   0.0 |  0.00
+Kspace  | 1.6627     | 1.6627     | 1.6627     |   0.0 | 97.70
+Neigh   | 0          | 0          | 0          |   0.0 |  0.00
+Comm    | 0.00029262 | 0.00029262 | 0.00029262 |   0.0 |  0.02
+Output  | 2.67e-05   | 2.67e-05   | 2.67e-05   |   0.0 |  0.00
+Modify  | 0.004304   | 0.004304   | 0.004304   |   0.0 |  0.25
+Other   |            | 5.841e-05  |            |       |  0.00
+
+Nlocal:    4608 ave 4608 max 4608 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    5390 ave 5390 max 5390 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    163405 ave 163405 max 163405 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 163405
+Ave neighs/atom = 35.4612
+Ave special neighs/atom = 0
+Neighbor list builds = 0
+Dangerous builds not checked
+
+write_restart restart_P_${Pext}_T_${Text}.mix
+write_restart restart_P_1_T_${Text}.mix
+write_restart restart_P_1_T_400.mix
+Ewald initialization ...
+  using 12-bit tables for long-range coulomb (../kspace.cpp:332)
+  G vector (1/distance) = 0.287184
+  estimated absolute RMS force accuracy = 0.00168353
+  estimated relative force accuracy = 0.000116915
+  KSpace vectors: actual max1d max3d = 7073 15 14895
+                  kxmax kymax kzmax  = 15 15 15
+
+dump trj all custom 1 last.conf id mol   type q  x y z
+dump_modify trj sort id format line "%d %d %d %8.4f %18.10f %18.10f %18.10f"
+run 0
+Ewald initialization ...
+  using 12-bit tables for long-range coulomb (../kspace.cpp:332)
+  G vector (1/distance) = 0.287184
+  estimated absolute RMS force accuracy = 0.00168353
+  estimated relative force accuracy = 0.000116915
+  KSpace vectors: actual max1d max3d = 7073 15 14895
+                  kxmax kymax kzmax  = 15 15 15
+Per MPI rank memory allocation (min/avg/max) = 34.57 | 34.57 | 34.57 Mbytes
+Step Temp PotEng KinEng E_vdwl E_pair E_coul E_long TotEng Press 
+      90    580.76692   -13928.576    345.84757    728.64175   -13928.576   -5705.5427   -8951.6753   -13582.729     10321.13 
+Loop time of 1.014e-06 on 1 procs for 0 steps with 4608 atoms
+
+295.9% CPU use with 1 MPI tasks x no OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 0          | 0          | 0          |   0.0 |  0.00
+Bond    | 0          | 0          | 0          |   0.0 |  0.00
+Kspace  | 0          | 0          | 0          |   0.0 |  0.00
+Neigh   | 0          | 0          | 0          |   0.0 |  0.00
+Comm    | 0          | 0          | 0          |   0.0 |  0.00
+Output  | 0          | 0          | 0          |   0.0 |  0.00
+Modify  | 0          | 0          | 0          |   0.0 |  0.00
+Other   |            | 1.014e-06  |            |       |100.00
+
+Nlocal:    4608 ave 4608 max 4608 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    5389 ave 5389 max 5389 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    163335 ave 163335 max 163335 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 163335
+Ave neighs/atom = 35.446
+Ave special neighs/atom = 0
+Neighbor list builds = 0
+Dangerous builds not checked
+Total wall time: 0:00:15
