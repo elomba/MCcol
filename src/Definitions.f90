@@ -74,6 +74,12 @@ Module rundata
     Real(wp) :: pres, vdmax
     character :: ensemble*3, initcf*3, scaling*5, stat*10&
          &="sequential"  
+    Character(len=8), Parameter :: c_blue   = char(27)//'[1;34m'
+    Character(len=8), Parameter :: c_cyan   = char(27)//'[1;36m'
+    Character(len=8), Parameter :: c_green  = char(27)//'[1;32m'
+    Character(len=8), Parameter :: c_yellow = char(27)//'[1;33m'
+    Character(len=8), Parameter :: c_red    = char(27)//'[1;31m'
+    Character(len=8), Parameter :: c_reset  = char(27)//'[0m'
 End Module rundata
 
 Module properties

@@ -22,26 +22,21 @@ contains
         Real(wp) :: dumx, dumy, dumz, qsp2
         Open (iosys,file='system.dat')
         read(iosys,*) restart
-        print *, restart
         if (restart) then
             ! Load dump file
             call load
             return
         endif
         read(iosys,*) initcf
-        print *, initcf
         Read(iosys,*) nsp, natoms
-        print *, nsp, natoms
         
         nitmax = (nsp*nsp+nsp)/2
         Allocate(ntype(nsp),atoms(nsp),qsp(nsp),q(natoms),&
             & qprod(nitmax))
         do i=1, nsp
            Read(iosys,*) j, atoms(j),qsp(j)
-           print *, j, atoms(j),qsp(j)
         end do
         Read(iosys,*) units
-        print *, units
 
         Allocate(R(ndim,1:natoms),iatype(natoms))
         nit = 1
@@ -54,9 +49,7 @@ contains
         !
         !  Input potential parameters
         !
-        print *, 'ok'
         call read_potpars
-        print *, 'ok2'
         !
         ! Read in Ewald convergence parameter and no. of k vectors in each
         ! direction. Warning, place the z-axis along the longest unit cell direction.

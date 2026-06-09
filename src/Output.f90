@@ -52,13 +52,13 @@ contains
             if (elect) then
                 Write(iothi,1010)
                 write(*,1020)
-1010            format(/" No. moves  % accept.        E_tot           E_sr           E_vdw         E_coul "/1x,100("-"))
-1020            format("# No. moves  % accept.        E_tot           &
-                     &E_sr           E_vdw         E_Four       E_self&
+1010            format(/" No. moves  % accept.      E_tot/N         E_sr           E_vdw/N       E_coul/N "/1x,100("-"))
+1020            format("# No. moves  % accept.        E_tot/N           &
+                     &E_sr/N           E_vdw/N         E_Four       E_self&
                      &        E_coul "/"#",120("-"))
             else
                 Write(iothi,1030)
-1030            format(/" No. moves  % accept.        E_tot           E_sr         E_vdw       "/1x,100("-"))
+1030            format(/" No. moves  % accept.        E_tot/N           E_sr/N         E_vdw/N       "/1x,100("-"))
                 Write(*,1030)
             endif
         elseif (ensemble == 'npt' ) Then
@@ -68,15 +68,15 @@ contains
             if (elect) then
                 Write(iothi,1050)
                 write(*,1060)
-1050            format("# No. moves  % accept.  % acc. vol.     E_tot           E_sr        E_vdw        E_coul     Vol"&
+1050            format("# No. moves  % accept.  % acc. vol.     E_tot/N           E_sr        E_vdw/N        E_coul     Vol"&
                     /"#",120("-"))
-1060            format("# No. moves  % accept.   % acc. vol.     E_tot           E_sr           E_vdw        E_Four       E_self     Vol"&
+1060            format("# No. moves  % accept.   % acc. vol.     E_tot/N           E_sr/N           E_vdw/N        E_Four       E_self     Vol"&
                     &/"#",120("-"))
             else
                 Write(iothi,1070)
                 Write(*,1080)
-1070            format("# No. moves  % accept.   % acc. vol.    E_tot          E_sr       E_vdw       Vol     Lx      Ly    Lz"/"#",120("-"))
-1080            format("# No. moves  % accept.    % acc. vol.    E_tot           E_sr         E_vdw       Vol"/"#",&
+1070            format("# No. moves  % accept.   % acc. vol.    E_tot/N          E_sr       E_vdw/N       Vol     Lx      Ly    Lz"/"#",120("-"))
+1080            format("# No. moves  % accept.    % acc. vol.    E_tot/N           E_sr/N         E_vdw/N       Vol"/"#",&
                     &100("-"))
             endif
         endif
@@ -119,27 +119,27 @@ contains
 
             if (elect) then
                 Write(iothi,'(i9,3x,f8.4,3x,5g15.7)') ntrial/natoms, 100*Dble(naccept)/dble(ntrial),&
-                &Etotal*kT, E_sr*kT, Evdw*kT, (E_fourier+selfe+E_sr-Evdw)*kt
+                &Etotal*kT/natoms, E_sr*kT/natoms, Evdw*kT/natoms, (E_fourier+selfe+E_sr-Evdw)*kt
                 Write(*,'(i9,3x,f8.4,3x,7g15.7)') ntrial/natoms, 100*Dble(naccept)/Dble(ntrial),&
-                &Etotal*kT, E_sr*kT, Evdw*kT, E_Fourier*kT, selfe*kT,&
+                &Etotal*kT/natoms, E_sr*kT/natoms, Evdw*kT/natoms, E_Fourier*kT, selfe*kT,&
                 & (E_fourier+selfe+E_sr-Evdw)*kt
             else
-                Write(iothi,'(i9,3x,f8.4,3x,5g15.7)') ntrial/natoms, 100*Dble(naccept)/dble(ntrial),Etotal*kT, E_sr*kT, (E_Fourier+selfe)*kT 
+                Write(iothi,'(i9,3x,f8.4,3x,5g15.7)') ntrial/natoms, 100*Dble(naccept)/dble(ntrial),Etotal*kT/natoms, E_sr*kT/natoms, (E_Fourier+selfe)*kT 
                 Write(*,'(i9,3x,f8.4,3x,7g15.7)') ntrial/natoms, 100*Dble(naccept)/dble(ntrial),&
-                &Etotal*kT, E_sr*kT, Evdw*kT
+                &Etotal*kT/natoms, E_sr*kT/natoms, Evdw*kT/natoms
             endif
         ElseIf (ensemble == 'npt' ) then
             if (elect) then
                 Write(iothi,'(i9,3x,2f9.4,3x,10g15.7)') ncycles, 100*Dble(naccept)/dble(ntrial), &
-                &prob_vol, Etotal*kT, E_sr*kT, Evdw*kT, (E_fourier+selfe+E_sr-Evdw)*kt, v0, side(:)
+                &prob_vol, Etotal*kT/natoms, E_sr*kT/natoms, Evdw*kT/natoms, (E_fourier+selfe+E_sr-Evdw)*kt, v0, side(:)
                 Write(*,'(i9,3x,2f9.4,3x,11g15.7)') ncycles, 100*Dble(naccept)/Dble(ntrial), prob_vol, &
-                &Etotal*kT, E_sr*kT, Evdw*kT, E_Fourier*kT, selfe*kT,&
+                &Etotal*kT/natoms, E_sr*kT/natoms, Evdw*kT/natoms, E_Fourier*kT, selfe*kT,&
                 &  v0
             else
                 Write(iothi,'(i9,3x,2f9.4,3x,10g15.7)') ncycles, 100*Dble(naccept)/dble(ntrial), &
-                &prob_vol, Etotal*kT, E_sr*kT, v0, side(:)
+                &prob_vol, Etotal*kT/natoms, E_sr*kT/natoms, v0, side(:)
                 Write(*,'(i9,3x,2f9.4,3x,10g15.7)') ncycles, 100*Dble(naccept)/dble(ntrial), &
-                &prob_vol, Etotal*kT, E_sr*kT, Evdw*kT, v0
+                &prob_vol, Etotal*kT/natoms, E_sr*kT/natoms, Evdw*kT/natoms, v0
             endif
         Endif
 
