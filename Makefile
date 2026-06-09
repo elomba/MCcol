@@ -9,12 +9,12 @@ OBJ_CORE = $(addprefix $(OBJDIR)/, Distance.o Util.o Readconf.o Output.o Cells.o
 MKDIR_P = mkdir -p
 BINDIR = bin
 MODPATH = modules
-FC = ifort
+FC = ifx
 BIN = bin/gpMC.exe
 
 OBJ_ALL = $(OBJ_CORE) $(OBJDIR)/set_precision.o $(OBJDIR)/Definitions.o  
 
-FCOPTS = -fast -module $(MODPATH) 
+FCOPTS = -O3 -fno-lto -module $(MODPATH) 
 
 %.o : %.mod
 
