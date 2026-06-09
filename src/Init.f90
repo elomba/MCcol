@@ -20,22 +20,28 @@ contains
         Implicit None
         Integer :: keytrj, imcon, iatm, i, j, nit
         Real(wp) :: dumx, dumy, dumz, qsp2
-        Open (iosys,file=adjustl(trim(data_dir))//'/system.dat')
+        Open (iosys,file='system.dat')
         read(iosys,*) restart
+        print *, restart
         if (restart) then
             ! Load dump file
             call load
             return
         endif
         read(iosys,*) initcf
+        print *, initcf
         Read(iosys,*) nsp, natoms
+        print *, nsp, natoms
+        
         nitmax = (nsp*nsp+nsp)/2
         Allocate(ntype(nsp),atoms(nsp),qsp(nsp),q(natoms),&
             & qprod(nitmax))
         do i=1, nsp
            Read(iosys,*) j, atoms(j),qsp(j)
-        enddo
+           print *, j, atoms(j),qsp(j)
+        end do
         Read(iosys,*) units
+        print *, units
 
         Allocate(R(ndim,1:natoms),iatype(natoms))
         nit = 1
@@ -48,7 +54,9 @@ contains
         !
         !  Input potential parameters
         !
+        print *, 'ok'
         call read_potpars
+        print *, 'ok2'
         !
         ! Read in Ewald convergence parameter and no. of k vectors in each
         ! direction. Warning, place the z-axis along the longest unit cell direction.
@@ -102,9 +110,8 @@ contains
         ! Read data specific for the run
         !
         Implicit None
-        Open(iorun,file=adjustl(trim(data_dir))//'/runMC.dat')
+        Open(iorun,file='runMC.dat')
         ! Read in name of results directory
-        read(iorun,*) res_dir
         read(iorun,*) ensemble
         If (ensemble .Ne. "nvt" .and. ensemble.Ne. "npt") Then
             Print *, " *** Input error:", ensemble," not implemented .."
@@ -154,7 +161,7 @@ contains
         !
         !
         if (ntraj .ne. 0) then
-            open(iotrj,file=adjustl(trim(res_dir))//"/gpMC.lammpstrj")
+            open(iotrj,file="gpMC.lammpstrj")
         endif
     End Subroutine Init_rundata
 

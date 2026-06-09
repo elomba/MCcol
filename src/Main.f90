@@ -53,7 +53,7 @@ Program gpMC
     Use configuration, Only : natoms
     ! Control parameters for the run
     Use rundata, Only : kT, restart, nequil, nstep, nb, ensemble, npgr,&
-         & s_cput, data_dir, ntraj, istep, istep_ini, iotrj, ilong 
+         & s_cput, ntraj, istep, istep_ini, iotrj, ilong 
     ! Initialization routies (including input of data)
     ! System properties
     Use properties
@@ -87,15 +87,6 @@ Program gpMC
     call catch()
     ! Get initial CPU time
     s_cput = cputime()
-        ! get command line arguments to set path to data files
-    if (command_argument_count() < 1) then
-       print *, '*** No command line arg provided: data directory default&
-            &s to "data/"'
-       data_dir='data'
-    else
-       call get_command_argument(1,data_dir)
-    endif
-
     !
     ! Initialize particle configuration
     !

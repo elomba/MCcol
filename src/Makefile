@@ -6,7 +6,6 @@ OBJDIR = obj
 OBJ_CORE = $(addprefix $(OBJDIR)/, Distance.o Util.o Readconf.o Output.o Cells.o Init.o\
  WriteCfg.o Structure.o Interactions.o Dump.o Thermo.o \
  Energy.o Move.o VolumeMove.o Main.o)
-MKDIR_P = mkdir -p
 BINDIR = bin
 MODPATH = modules
 FC = ifort
@@ -25,7 +24,7 @@ $(OBJDIR)/%.o: %.f90 ${OBJDIR}
 	$(FC) -c $(FCOPTS) $< -o $@
 
 $(BIN): ${MODPATH} ${BINDIR} $(OBJ_CORE) $(OBJDIR)/libutil.o
-	$(FC) $(LKOPTS) -o $(BIN)  $(OBJ_ALL) $(OBJDIR)/libutil.o ; ${MKDIR_P} ${RESPATH}
+	$(FC) $(LKOPTS) -o $(BIN)  $(OBJ_ALL) $(OBJDIR)/libutil.o 
 
 $(OBJ_CORE) : $(OBJDIR)/set_precision.o $(OBJDIR)/Definitions.o
 
@@ -46,13 +45,3 @@ debug:
 debug-mac:
 	$(MAKE) FCOPTS="-debug -O0 -CB -module $(MODPATH)" LKOPTS="-Wl,-no_pie"
 	
-directories: ${BINDIR} ${MODPATH} ${OBJDIR}
-
-${BINDIR}:
-	${MKDIR_P} ${BINDIR}
-
-${MODPATH}:
-	${MKDIR_P} ${MODPATH}
-	
-${OBJDIR}:
-	${MKDIR_P} ${OBJDIR}

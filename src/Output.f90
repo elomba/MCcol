@@ -1,5 +1,5 @@
 module output
-    use rundata, only : ioth, iothi, igr, res_dir, data_dir
+    use rundata, only : ioth, iothi, igr
     public :: printout
 contains
     subroutine initout
@@ -43,8 +43,8 @@ contains
         use potential, only : elect
         use rundata, only : ensemble, stat
         implicit none
-        Open(ioth,file=adjustl(trim(res_dir))//'/thermoaver.dat',access=stat)
-        Open(iothi,file=adjustl(trim(res_dir))//'/thermoins.dat',access=stat)
+        Open(ioth,file='thermoaver.dat',access=stat)
+        Open(iothi,file='thermoins.dat',access=stat)
         if (ensemble == 'nvt') Then
             Write(ioth,1000)
 1000        format("# No. moves  % accept.       <E_tot>         <E_sr&
@@ -152,7 +152,7 @@ contains
         Implicit None
         real(wp) :: ri
         Integer :: i, j, l
-        Open(igr,file=adjustl(trim(res_dir))//"/gmix.dat")
+        Open(igr,file="gmix.dat")
         Write(igr,'("#      r(Å)   ")',advance='no')
         Do i=1, nsp
             Do j=i,nsp

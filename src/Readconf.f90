@@ -10,7 +10,7 @@ contains
     real(wp) :: dumx, dumy, dumz, rdum(3), xl, xh, yl, yh, zl, zh
     Character :: atms*8
     if ( initcf == "dlp") then
-       Open (iocfg,file='data/CONFIG',status='old')
+       Open (iocfg,file='CONFIG',status='old')
        Read(iocfg,'(1x)')
        Read(iocfg,*) keytrj, imcon
        Read(iocfg,*) a
@@ -44,7 +44,7 @@ contains
        a(:)=0
        b(:)=0
        c(:)=0
-       Open (iocfg,file='data/data.atoms',status='old')
+       Open (iocfg,file='data.atoms',status='old')
        read (iocfg,'(1x,//////)')
        !
        !Only orthogonal cells

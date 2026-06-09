@@ -73,7 +73,7 @@ Module rundata
     ! NpT ensemble (Eva's change)
     Real(wp) :: pres, vdmax
     character :: ensemble*3, initcf*3, scaling*5, stat*10&
-         &="sequential", data_dir*ilong, res_dir*ilong 
+         &="sequential"  
 End Module rundata
 
 Module properties

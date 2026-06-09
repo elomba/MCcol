@@ -4,13 +4,13 @@ module WriteCfg
   !
   use configuration, only : a, b, c, side, r, natoms, ntype,&
        &atoms, iatype, nsp, r_unit, ndim
-  use rundata, only: iocfg, iotrj, res_dir
+  use rundata, only: iocfg, iotrj
 contains
   Subroutine writecfg_dlp
     ! DLPOLY format
     Implicit None
     Integer :: keytrj=0, imcon=1, iatm, i, j
-    Open (iocfg,file='data/CONFIG.last')
+    Open (iocfg,file='CONFIG.last')
     Write(iocfg,'(1x)')
     Write(iocfg,*) keytrj, imcon
     Write(iocfg,*) a
@@ -27,7 +27,7 @@ contains
     ! LAMMPS format dump custom id type mol x y z 
     Implicit None
     Integer :: keytrj=0, imcon=1, iatm, i, j, istep
-    Open (iocfg,file=adjustl(trim(res_dir))//'/last.lammpstrj')
+    Open (iocfg,file='last.lammpstrj')
     call dump_trj(istep,iocfg)
     close(iocfg)
   End Subroutine writecfg_lmp

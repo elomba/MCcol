@@ -17,7 +17,7 @@ Subroutine Cierra(clean)
     Call Date_and_time(Dia,Hora)
     BHora = Hora(1:2) // ':' //  Hora(3:4) // ':' // Hora(5:6)
     BDia  = Dia(7:8) // '-' // Dia(5:6) // '-' // Dia(1:4)
-    dfname = adjustl(trim(res_dir))//"/dump"//dia(1:8)//hora(1:4)//".dmp"
+    dfname = "dump"//dia(1:8)//hora(1:4)//".dmp"
     call random_seed(size=length)
     call random_seed(get=seed(1:length))
     open (1000,file=dfname,form="unformatted",access="stream")
@@ -84,7 +84,7 @@ Subroutine Load
     Use Util, only : cputime
     Implicit None
     Character ::  Dia*10, Hora*10, Bhora*10, BDia*10, dfname*30
-    open (1000,file=adjustl(trim(res_dir))//"/restart.dmp",form="unformatted",access="stream")
+    open (1000,file="restart.dmp",form="unformatted",access="stream")
     call random_seed
     call random_seed(size=length)
     allocate(seed(1:length))
