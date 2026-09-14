@@ -1,3 +1,28 @@
+!===============================================================================
+! File: Dump.f90
+!
+! Purpose:
+!   Provides checkpointing, state serialization, and simulation restart capabilities.
+!   Uses Fortran stream I/O for efficient, platform-independent binary persistence.
+!
+! Subroutines:
+!   - Cierra : Writes binary dump file and final configuration snapshot.
+!              Invoked either on clean termination (clean=1) or upon catching
+!              POSIX termination signals SIGINT / SIGTERM (clean=0).
+!   - Load   : Reads restart.dmp to fully reconstruct simulation state.
+!===============================================================================
+
+!-------------------------------------------------------------------------------
+! Subroutine: Cierra
+!
+! Purpose:
+!   Orderly shutdown and checkpoint dumper.
+!   Writes all global arrays, coordinates, energies, parameters, and RNG state
+!   to a time-stamped unformatted stream binary file `dumpYYYYMMDDHHMM.dmp`.
+!
+! Arguments:
+!   clean (in) : Status code (1 = normal termination, 0 = emergency signal exit).
+!-------------------------------------------------------------------------------
 Subroutine Cierra(clean)
     Use rundata
     Use configuration
@@ -74,6 +99,15 @@ Subroutine Cierra(clean)
     Stop
 End Subroutine Cierra
 
+!-------------------------------------------------------------------------------
+! Subroutine: Load
+!
+! Purpose:
+!   Restores the complete simulation state from `restart.dmp` (unformatted stream):
+!   random number seed, step index, coordinates, charges, force field tables,
+!   Ewald reciprocal space structure factors, and accumulators.
+!   Sets output file mode to "append" to seamlessly continue previous trajectories.
+!-------------------------------------------------------------------------------
 Subroutine Load
     Use rundata
     Use configuration
@@ -120,9 +154,19 @@ Subroutine Load
     Allocate(histomix(nmaxgr,nsp,nsp),gmix(nmaxgr,nsp,nsp))
     Read(1000) histomix, gmix
     read(1000) ncut
-    allocate(utab(ncut,nitmax),rmin2(nitmax))
+    allocate(utab(ncut,nitmax),rmin2(nitmax),ucut(nitmax))
     Read(1000) utab, rmin2
     close(1000)
+    ucut(:) = 0.0d0
+    if (any(cl /= 0.0d0)) then
+        keyp(:) = 1
+        kint = 1
+    else
+        keyp(:) = 2
+        kint = 2
+    endif
+    fou_type = 1
+    if (initcf /= "dlp" .and. initcf /= "lmp") initcf = "dlp"
     stat = "append"
     BHora = Hora(1:2) // ':' //  Hora(3:4) // ':' // Hora(5:6)
     BDia  = Dia(7:8) // '-' // Dia(5:6) // '-' // Dia(1:4)

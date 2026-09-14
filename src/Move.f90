@@ -1,21 +1,50 @@
 
+!===============================================================================
+! Module: Moving
+!
+! Purpose:
+!   Implements canonical single-particle displacement trial moves according to the
+!   standard Metropolis Monte Carlo algorithm.
+!
+! Metropolis Algorithm for Particle Displacements:
+!   1. Randomly select an atom index n in [1, natoms].
+!   2. Propose trial position:
+!        r_new = r_old + delta_r_max * (2*xi - 1) / box_length
+!   3. Wrap into primary simulation box using periodic boundary conditions.
+!   4. Compute potential energy difference:
+!        Delta_E = Delta_E_short_range + Delta_E_Fourier
+!   5. Acceptance criterion:
+!        if Delta_E <= 0: accept move
+!        if Delta_E >  0: accept with probability P = exp(-Delta_E / kT)
+!   6. If accepted: update particle coordinate, cell linked lists (if particle
+!      crosses a cell boundary), and reciprocal structure factors rho(k).
+!      If rejected: restore original state.
+!===============================================================================
 Module Moving 
   Use set_precision
+  Use Interfaces, Only : dist2
   Use Thermo
   Use rundata
   Use properties
 Contains 
+
+  !-----------------------------------------------------------------------------
+  ! Subroutine: moven
+  !
+  ! Purpose:
+  !   Performs a single particle displacement trial move using direct O(N)
+  !   pairwise energy evaluation across all other atoms.
+  !
+  ! Arguments:
+  !   f (external function) : Pair potential evaluation function.
+  !-----------------------------------------------------------------------------
   Subroutine moven(f)
-    !
-    ! Brute force move routine for displacement moves.
-    !
     Implicit None
     Integer :: ntest, i, iti, itj, nit
     Real (dkind) :: eng0, eng1, deltaE, deltaFour, deltaEt
     Real (wp), External :: f
     Real (wp) :: rdd(ndim), rddn(ndim), rp(ndim), harvest(0:ndim)
     Real (wp) :: rr, rd2, rdn2, xi
-    Real (wp), external :: dist2
     ntrial = ntrial+1
     ! Choose randomly particle to move
     Call Random_number(harvest(0:ndim))
@@ -93,10 +122,18 @@ Contains
     End If
   End Subroutine moven
 
+  !-----------------------------------------------------------------------------
+  ! Subroutine: move_linkcell
+  !
+  ! Purpose:
+  !   Performs a single particle displacement trial move utilizing the 3D
+  !   link-cell method. Only atoms in the 27 neighboring cells are inspected
+  !   for short-range energy changes.
+  !
+  ! Arguments:
+  !   f (external function) : Pair potential evaluation function.
+  !-----------------------------------------------------------------------------
   Subroutine move_linkcell(f)
-    !
-    ! Move routine implementing link cell method
-    !
     use linkcell
     use interp
     use cells, only : update_cell_list
@@ -106,7 +143,6 @@ Contains
     real (wp), external :: f
     Real (wp) :: rdd(ndim), rddn(ndim), rp(ndim), harvest(0:ndim)
     Real (wp) :: rr, rd2, rdn2, xi, r6,r_unit2(3)
-    Real (wp), external :: dist2
     r_unit2(:) = r_unit(:)*r_unit(:)
     ntrial = ntrial+1
     ! Choose randomly particle to move
@@ -206,10 +242,15 @@ Contains
     End If
   End Subroutine move_linkcell
 
+  !-----------------------------------------------------------------------------
+  ! Subroutine: move_link_int
+  !
+  ! Purpose:
+  !   Performs a single particle displacement trial move using link cells
+  !   and Paul Breeuwsma cubic spline interpolation for pair potentials.
+  !   Enforces hard-core overlap rejection if distance < rmin2(nit).
+  !-----------------------------------------------------------------------------
   Subroutine move_link_int
-    !
-    ! Move routine with link cell method and potential interpolation
-    !
     use linkcell
     use interp
     use cells, only : update_cell_list, build_cells
@@ -219,7 +260,6 @@ Contains
     Real (wp) :: rdd(ndim), rddn(ndim), rp(ndim), harvest(0:ndim)
     Real (wp) :: y(0:3), a(0:3)
     Real (wp) :: rr, rd2, rdn2, xi, mu, mu2, xmu
-    Real (wp), external :: dist2
     logical :: overlap
     overlap = .false.
     ntrial = ntrial+1
@@ -345,11 +385,26 @@ Contains
     End If
   End Subroutine move_link_int
 
+  !-----------------------------------------------------------------------------
+  ! Subroutine: change_fourier
+  !
+  ! Purpose:
+  !   Computes the change in the reciprocal space Ewald energy (deltaf)
+  !   resulting from the trial displacement of a single charged particle n.
+  !
+  ! Method:
+  !   Instead of recalculating the full double sum over all N particles (O(K*N)),
+  !   an incremental update of the structure factor rho(k) is performed:
+  !     delta_rho(k) = q_n * [ exp(i * k * r_try) - exp(i * k * r_old) ]
+  !     delta_E_Fourier = sum_k w(k) * [ 2 * Re(rho(k) * delta_rho*(k)) + |delta_rho(k)|^2 ]
+  !   This scales as O(K) where K is the number of k-vectors.
+  !
+  ! Arguments:
+  !   n      (in)  : Displaced atom index.
+  !   rtry   (in)  : Trial reduced coordinates [ndim].
+  !   deltaf (out) : Resulting reciprocal energy change.
+  !-----------------------------------------------------------------------------
   Subroutine change_fourier(n,rtry,deltaf)
-    !
-    ! Compute change of Fourier component of potential energy when
-    ! moving one particle 
-    !
     Implicit None
     Integer, Intent(in) :: n
     Real(wp), Intent(in) :: rtry(ndim)
@@ -358,18 +413,15 @@ Contains
     Real (wp) :: rold(ndim)
     Complex (wp) :: deltannp, deltannpm
     rold(1:ndim) = R(1:ndim,n)
-    !
-    ! Initialize matrices containing Exp(i*2pi*(kx/Lx+ky/Ly+kz/Lz)) for test particle
-    ! Unreduce test position coordinates
 
+    ! Initialize matrices containing Exp(i*2pi*(kx/Lx+ky/Ly+kz/Lz)) for test particle
     einx(1) = Exp(ii*dospix*rtry(1)*r_unit(1))
     einy(1) = Exp(ii*dospiy*rtry(2)*r_unit(2))
     einz(1) = Exp(ii*dospiz*rtry(3)*r_unit(3))
     einx(-1) =  Conjg(einx(1))
     einy(-1) =  Conjg(einy(1))
-    !
-    ! Calculate using iterative approach
-    !
+
+    ! Iterative phase factor propagation
     Do kx=2,kmx
        einx(kx)=einx(kx-1)*einx(1)
        einx(-kx) =  Conjg(einx(kx))
@@ -385,9 +437,7 @@ Contains
     Do kz=kmy+1,kmz
        einz(kz)=einz(kz-1)*einz(1)
     End Do
-    !
-    ! End initializations
-    !
+
     deltaf=0.0d0
     k=1
     Do kx = 1, kmx
@@ -424,17 +474,18 @@ Contains
           End Do
        End Do
     End Do
-    !
-    ! A factor 2 appears due to the symmetry simplifications
-    !
+
+    ! Factor of 2 due to half-space symmetry reduction
     deltaf = 2*deltaf*pi2*ctr/v0
   End Subroutine change_fourier
 
-    Subroutine change_pme(n,rtry,deltaf)
-    !
-    ! Compute change of Fourier component of potential energy when
-    ! moving one particle 
-    !
+  !-----------------------------------------------------------------------------
+  ! Subroutine: change_pme
+  !
+  ! Purpose:
+  !   Placeholder interface for Particle Mesh Ewald single particle update.
+  !-----------------------------------------------------------------------------
+  Subroutine change_pme(n,rtry,deltaf)
     Implicit None
     Integer, Intent(in) :: n
     Real(wp), Intent(in) :: rtry(ndim)
@@ -443,24 +494,24 @@ Contains
     Real (wp) :: rold(ndim)
     Complex (wp) :: deltannp, deltannpm
     rold(1:ndim) = R(1:ndim,n)
-    !
-    ! Initialize matrices containing Exp(i*2pi*(kx/Lx+ky/Ly+kz/Lz)) for test particle
-    ! Unreduce test position coordinates
     deltaf = 0
-    !
-    ! A factor 2 appears due to the symmetry simplifications
-    !
     deltaf = 2*deltaf*pi2*ctr/v0
   End Subroutine change_pme
 
 End Module Moving
 
 
-
+!-------------------------------------------------------------------------------
+! Subroutine: move_natoms
+!
+! Purpose:
+!   Monte Carlo sweep driver. Attempts `natoms` sequential single-particle trial
+!   displacement moves, constituting one complete MC cycle/sweep.
+!
+! Arguments:
+!   natoms (in) : Number of trial displacement moves to execute.
+!-------------------------------------------------------------------------------
 Subroutine move_natoms(natoms)
-  !
-  ! Routine to move natoms sequentially 
-  !
   Use set_precision
   use Moving, only : move_link_int, move_linkcell, moven
   use linkcell, only : use_cell

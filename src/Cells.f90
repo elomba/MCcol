@@ -1,7 +1,34 @@
+!===============================================================================
+! Module: cells
+!
+! Purpose:
+!   Implements the 3D Link-Cell (Cell-List) spatial decomposition method.
+!   Reduces short-range pair interaction computations from O(N^2) to O(N).
+!
+! Algorithm Overview:
+!   1. The simulation box is partitioned into a 3D grid of subcells of edge
+!      length >= (rcut + rdmax). This guarantees that any particle within rcut
+!      of particle i in cell C must reside either in cell C or in one of its
+!      26 immediate adjacent neighboring cells (total 27 cells).
+!   2. Atoms in each cell are stored as a singly linked list via the arrays:
+!      - head(icell) : Points to the first atom in cell icell (or 0 if empty).
+!      - list(iatom) : Points to the next atom in the same cell (or 0 at end).
+!   3. Periodic boundary conditions are handled by wrapping cell indices via fijk.
+!   4. During MC moves, only atoms that cross a cell boundary trigger an O(1)
+!      re-linking of the head and list arrays via update_cell_list.
+!===============================================================================
 module cells
     use configuration, only : ndim, natoms, a, b, c, r
     use potential, only : rcut
 contains
+
+    !---------------------------------------------------------------------------
+    ! Subroutine: Init_cell
+    !
+    ! Purpose:
+    !   Determines cell grid dimensions (maxi, maxj, maxk), allocates cell arrays,
+    !   and precalculates the 27 neighbor cell indices for each cell.
+    !---------------------------------------------------------------------------
     Subroutine Init_cell
         Use linkcell
         use rundata, only : rdmax
@@ -46,6 +73,13 @@ contains
         End Do
     end Subroutine Init_cell
 
+    !---------------------------------------------------------------------------
+    ! Function: fijk
+    !
+    ! Purpose:
+    !   Maps 3D grid cell indices (ix, jx, kx) to a flat 1D cell index in [0, ncell-1]
+    !   with periodic wrapping along all three spatial dimensions.
+    !---------------------------------------------------------------------------
     Integer Function fijk(ix,jx,kx)
         use linkcell, only : maxi, maxj, maxk
         Implicit None
@@ -53,9 +87,7 @@ contains
         i = ix
         j = jx
         k = kx
-        !
-        !  Use periodic boundary conditions
-        !
+        ! Apply periodic boundary wrapping
         if (i < 0) i=i+maxi
         if (j < 0) j=j+maxj
         if (k < 0) k=k+maxk
@@ -65,6 +97,13 @@ contains
         fijk=(i*maxj+j)*maxk+k
     end function fijk
 
+    !---------------------------------------------------------------------------
+    ! Subroutine: build_cells
+    !
+    ! Purpose:
+    !   Rebuilds the entire link-cell structure from scratch for all atoms.
+    !   Resets head and list arrays, assigns each atom to its respective cell.
+    !---------------------------------------------------------------------------
     subroutine build_cells
         use linkcell
         implicit none
@@ -79,14 +118,20 @@ contains
             list(n) = head(icell)
             head(icell) = n
         end do
-
     end subroutine build_cells
 
+    !---------------------------------------------------------------------------
+    ! Subroutine: update_cell_list
+    !
+    ! Purpose:
+    !   Updates cell linked lists when a single particle (ntest) moves to a new cell.
+    !   Removes ntest from its old cell list and prepends it to the new cell list in O(1) time.
+    !
+    ! Arguments:
+    !   ntest (in) : Atom index that was displaced.
+    !   icell (in) : Destination cell index.
+    !---------------------------------------------------------------------------
     subroutine update_cell_list(ntest,icell)
-        !
-        ! Check whether particle ntest exits cell ocell, update cell list
-        ! if needed
-        !
         use linkcell, only : maxk, maxj, cellx, celly, cellz, head, list
         implicit none
         integer, intent(IN) :: ntest, icell

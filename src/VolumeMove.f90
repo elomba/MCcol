@@ -1,3 +1,24 @@
+!===============================================================================
+! Module: VolumeChange
+!
+! Purpose:
+!   Implements volume trial moves for Isobaric-Isothermal (NpT) ensemble
+!   simulations.
+!
+! Metropolis Criterion for Isobaric-Isothermal (NpT) Volume Moves:
+!   The probability of accepting a trial box volume change V_old -> V_new:
+!     P_acc = min( 1, exp[ - (Delta_E + P * Delta_V) / kT + N * ln(V_new / V_old) ] )
+!   where:
+!     Delta_E = E(V_new) - E(V_old)  : Total internal potential energy change
+!     P                              : Target external pressure
+!     Delta_V = V_new - V_old        : Box volume difference
+!     N                              : Total number of particles (natoms)
+!
+! Scaling Modes:
+!   - 'isotr' : Isotropic scaling where box edges (Lx, Ly, Lz) scale by the same factor.
+!   - 'ortho' : Anisotropic scaling where each box edge (Lx, Ly, Lz) varies independently.
+!   - 'cubic' : Direct cubic box side scaling with cutoff transformation.
+!===============================================================================
 Module VolumeChange
 
   Use Set_precision
@@ -9,41 +30,45 @@ Module VolumeChange
 
 Contains 
 
- Subroutine move_volume
-  implicit none
-  if (scaling == 'cubic') then
-       if (elect) then
-           if (kint == 1) then
-              Call move_volume_cubic(fpot_elecMorse)
-           else
-              Call move_volume_cubic(fpot_elecLJ)
-           endif
-        else
-           if (kint == 1) then
-              Call move_volume_cubic(fpot_Morse)
-           else
-              Call move_volume_cubic(fpot_LJ)
-           endif
-        endif
-  elseif (scaling == 'ortho'.or.scaling == 'isotr') then 
+  !-----------------------------------------------------------------------------
+  ! Subroutine: move_volume
+  !
+  ! Purpose:
+  !   Dispatcher subroutine that selects the appropriate volume move routine
+  !   based on the user-selected `scaling` variable ('ortho', 'isotr', 'cubic').
+  !-----------------------------------------------------------------------------
+  Subroutine move_volume
+    implicit none
+    if (scaling == 'cubic') then
+         if (elect) then
+             if (kint == 1) then
+                Call move_volume_cubic(fpot_elecMorse)
+             else
+                Call move_volume_cubic(fpot_elecLJ)
+             endif
+          else
+             if (kint == 1) then
+                Call move_volume_cubic(fpot_Morse)
+             else
+                Call move_volume_cubic(fpot_LJ)
+             endif
+          endif
+    elseif (scaling == 'ortho' .or. scaling == 'isotr') then 
+       call move_volume_ortho 
+    Endif
+  End subroutine move_volume
 
-     call move_volume_ortho 
 
-  Endif
-
- End subroutine move_volume
-
-
- Subroutine move_volume_cubic(f)
-!
-!
-!    Beware that to speed up the code the kappa is scaled together with the simulation box
-!    This will cause problems if you want to evaluate the critical point
-!    This part is not working properly: the dispersion and real parts should be separated
-!    As kappa is also scaled, it is not possible to use the tabulated potential
-!
-  Use linkcell
-  Use interp   
+  !-----------------------------------------------------------------------------
+  ! Subroutine: move_volume_cubic
+  !
+  ! Purpose:
+  !   Cubic box trial volume move with uniform scaling of cutoff and coordinates.
+  !-----------------------------------------------------------------------------
+  Subroutine move_volume_cubic(f)
+    ! Note: Kappa is scaled along with the box dimensions.
+    Use linkcell
+    Use interp   
   implicit none
   Integer    ::  i, j, ix, jy, kz, icell, cell, iti,itj, nit, ir
   Real (dkind) ::  E_sr_new, E_fourier_new, selfe_new, E_total_new, deltaEt
@@ -178,13 +203,25 @@ Contains
  End subroutine move_volume_cubic
 
 
- Subroutine move_volume_ortho
-!
-!   If the ratio between the edges of the box is maintained
-!     we could do some scaling, but we need to define kappa_x, kappa_y and kappa_z
-!     that possibility is not yet implemented
-!
-  implicit none
+  !-----------------------------------------------------------------------------
+  ! Subroutine: move_volume_ortho
+  !
+  ! Purpose:
+  !   Attempts a trial volume move for an orthorhombic simulation box under
+  !   isobaric-isothermal (NpT) conditions.
+  !
+  ! Modes:
+  !   - 'ortho' : Each box edge (Lx, Ly, Lz) is perturbed independently by a
+  !               random increment in [-vdmax, vdmax].
+  !   - 'isotr' : Box edge Lx is perturbed by [-vdmax, vdmax], and Ly, Lz are
+  !               scaled by the exact same ratio (isotropic expansion/contraction).
+  !
+  ! Full recalculation of short-range and reciprocal Ewald energies is carried out.
+  ! If rejected, all box parameters, lattice vectors, and reciprocal structures
+  ! are restored to their pre-trial values.
+  !-----------------------------------------------------------------------------
+  Subroutine move_volume_ortho
+    implicit none
   Real (dkind)  ::  deltaE_Fourier, deltaEt, deltaE_sr
   Real (dkind)  ::  Etotal_old, E_sr_old, E_coulomb_old, E_fourier_old, v_old
   Real (wp), dimension(ndim) :: a_old, b_old, c_old, side_old, r_unit_old

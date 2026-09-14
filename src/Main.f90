@@ -1,89 +1,92 @@
+!===============================================================================
+! Program: gpMC (General Purpose Monte Carlo)
+! Project: MCcol
 !
-! General purpose Monte Carlo code for atomistic simulations. At
-! present simulates bulk systems composed of soft spherical particles
-! (single or multicomponent) with or without charges. Charges are
-! treated using Ewald sums. The program implements a link cell
-! algorithm if the sample size allows it.
-! Implemented ensembles: NVT
+! Authors:
+!   Enrique Lomba (enrique.lomba@csic.es)
+!   Eva G. Noya   (eva.noya@iqf.csic.es)
+!   Instituto de Química Física Rocasolano / IQFR-CSIC, Madrid, Spain
 !
-! Input data files (see the files for parameter specifications) :
-!           system.dat : contains description of the system to be simulated
-!           runMC.dat :  contains specific parameters that control
-!                        the run
+! Description:
+!   General Purpose atomistic Monte Carlo code for condensed-matter systems.
+!   Simulates bulk multicomponent and ionic soft spherical systems with
+!   arbitrary stoichiometry.
 !
-!           CONFIG/data.atoms: initial configuration : DLPOLY 2 format (inpf="dlp" in runMc.dat)
-!                                                      LAMMPS data.atoms format (inpf="lmp" in runMc.dat)
-!                         
-! Output files:
-!           thermoaver.dat : thermodynamic averages
-!           thermoins.dat  : instantaneous thermodynamic quantities
-!           gmix.dat       : pair correlation functions
-!
-! Program units:
-!         Energy: "eV" electronVolts
-!                 "K" Lennard-Jones (Energy in Kelvin)
-!         Distance: Angstrom (internal units in box length)
-!
-!  General modules are contained in Definitions.f90
-!  Internal control variables:
-!           use_cell (logical): if .true. link cells are used
-!
-!           elect    (logical): if .true. Ewald electrostatics is computed
-!
-!   An interpolation algorithm is used to evaluate interactions.
-!
-!   Internal energy units reduced by kT, length units reduced by box size
-!
-! E.G. Noya, E. Lomba, April, 2015
-!                      September, 2021
-!
+! Key Capabilities:
+!   - Ensembles:
+!       NVT : Canonical ensemble (fixed N, V, T)
+!       NpT : Isobaric-Isothermal ensemble (fixed N, P, T) with isotropic
+!             ('isotr') or anisotropic ('ortho') orthorhombic cell fluctuations.
+!   - Interactions:
+!       Morse Potential (keyp = 1)
+!       Lennard-Jones 12-6 Potential (keyp = 2)
+!       Potential Truncation & Shifting
+!   - Long-Range Electrostatics:
+!       Full Ewald summation for periodic boundaries:
+!         * Real-space complementary error function screening (erfc(kappa*r)/r)
+!         * Reciprocal space Fourier sum over half-space wavevectors (symmetry optimized)
+!         * Electrostatic self-energy correction
+!   - Algorithmic Speedups:
+!       * 3D Link-Cell domain decomposition for O(N) neighbor searches
+!       * Paul Breeuwsma smooth cubic spline potential interpolation
+!       * Incremental structure factor update for single-particle reciprocal moves O(K)
+!   - Interoperability:
+!       * Input: DL_POLY 2 CONFIG format (initcf="dlp"), LAMMPS data.atoms format (initcf="lmp")
+!       * Output: LAMMPS custom trajectory dump (gpMC.lammpstrj, last.lammpstrj),
+!                 DL_POLY CONFIG.last, binary checkpoint restart.dmp
+!       * Analysis: Instantaneous thermo (thermoins.dat), block averages (thermoaver.dat),
+!                   multicomponent partial radial distribution functions g_ij(r) (gmix.dat).
+!===============================================================================
 Program gpMC
-    !
-    ! Module to define generic precision
-    !
     use set_precision
-    !--------- general Definitions --------------------------
-    !
-    ! Interaction potential parameters.
-    !       keyp(nit) : integer array                      = 1 Morse
-    !                   (one value for every interaction)  = 2 Lennard-Jones
-    !
+
+    ! System potential parameters and electrostatics control
     Use potential, Only : keyp, kint, elect
-    ! Variables defining the system configuration
+
+    ! System particle count and topology
     Use configuration, Only : natoms
-    ! Control parameters for the run
+
+    ! Run control data, step limits, ensemble flags, and I/O units
     Use rundata, Only : kT, restart, nequil, nstep, nb, ensemble, npgr,&
          & s_cput, ntraj, istep, istep_ini, iotrj, ilong 
-    ! Initialization routies (including input of data)
-    ! System properties
+
+    ! Accumulated and instantaneous thermodynamic properties
     Use properties
-    ! Parameters that define link cells
+
+    ! 3D Link-Cell configuration flag
     Use linkcell, Only : use_cell
-    ! Interfaces to routines
-    Use interfaces, Only : move_natoms
-    !
-    !----------- Specific routines --------------------------
-    !
+
+    ! Explicit interface blocks
+    Use interfaces, Only : move_natoms, fpot_elecLJ, fpot_elecMorse, fpot_Morse, fpot_LJ
+
+    ! Initialization procedures
     Use Init, Only : Init_conf, Init_pot, Init_rundata, Init_interp
-    ! Thermodynamics averages
+
+    ! Thermodynamic averaging routines
     Use Thermo, Only : Averages
-    ! Output routines
+
+    ! Output and logging routines
     Use Output, Only : Printout, init_printout, initout, run_info,&
         & printgr, end_printout, print_ener
     Use WriteCfg, only : dump_trj
-    ! Routines to calculate the energy (with and without link cell).
+
+    ! Energy calculation subroutines (direct sum and link-cell)
     Use Energy, Only : Energ, Energ_cell, Eshort_r
-    ! Link cell routines
+
+    ! Link-cell spatial grid builder
     Use Cells, Only : build_cells, init_cell
-    ! routines to change the volume
+
+    ! Isobaric-isothermal volume change driver
     Use VolumeChange, Only : move_volume
-    ! Utility routines
+
+    ! High-resolution timing utility
     Use Util, Only : cputime
+
     Implicit None
     Integer :: j, ntest
     Real (dkind) :: esrold, fourold
-    Real (wp), external :: fpot_elecLJ, fpot_elecMorse, fpot_Morse, fpot_LJ
-    ! Intercep kill signals for clean and orderly exit execution
+
+    ! Intercept POSIX signals (SIGTERM, SIGINT) for orderly shutdown & checkpointing
     call catch()
     ! Get initial CPU time
     s_cput = cputime()

@@ -1,3 +1,10 @@
+!===============================================================================
+! Module: Thermo
+!
+! Purpose:
+!   Manages thermodynamic property accumulation and averaging during the
+!   production phase of the Monte Carlo simulation.
+!===============================================================================
 Module Thermo
     use interfaces
     Use set_precision
@@ -7,17 +14,26 @@ Module Thermo
     Use rundata
 Contains 
 
+    !---------------------------------------------------------------------------
+    ! Subroutine: averages
+    !
+    ! Purpose:
+    !   Accumulates running sums of total energy, short-range energy, and
+    !   van der Waals contributions for block/ensemble averaging.
+    !   Prints banner on first call marking the completion of equilibration,
+    !   and triggers periodic output to thermoaver.dat and stdout.
+    !---------------------------------------------------------------------------
     Subroutine averages
         Use rundata, only : ensemble
         use output, only : Printout
         Implicit None
         Real(wp) :: Esum, rsum
         Integer :: nei, nhstmin, nhstmax, i
-        Logical, Save :: first=.True.
+        Logical, Save :: first = .True.
+
         If (first) Then
             Write(*,"(' *** End of equilibration ***')")
             If (ensemble == 'nvt') Then
-
                 If (elect) Then
                     Write(*,1000)
 1000                format(/" No. moves  % accept.        E_tot           E_sr            E_vdw          E_Four       <E_self>           <E_coul>"&
@@ -38,14 +54,14 @@ Contains
             endif
             first = .False.
         End If
-        naver = naver+1
-        Etotal = E_sr+E_Fourier+selfe
-        Etav = Etotal+Etav
-        E_sav = E_sr+E_sav
+
+        naver = naver + 1
+        Etotal = E_sr + E_Fourier + selfe
+        Etav = Etotal + Etav
+        E_sav = E_sr + E_sav
         E_vdwav = E_vdwav + Evdw
         call Printout(.true.)
     End Subroutine averages
-
 
 End Module Thermo
 

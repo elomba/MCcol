@@ -37,7 +37,7 @@ clean:
 	rm -f  $(OBJ_ALL)  $(MODPATH)/*.mod $(OBJDIR)/libutil.o
 
 all:
-	$(MAKE)  $(BIN)
+	$(MAKE) -f Makefile.gfortran $(BIN)
 
 debug:
 	$(MAKE) -f Makefile.gfortran FCOPTS="-g -O0 -fcheck=bounds -J$(MODPATH)"

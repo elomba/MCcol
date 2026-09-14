@@ -1,13 +1,32 @@
+!===============================================================================
+! Module: WriteCfg
+!
+! Purpose:
+!   Writes final configuration snapshots and continuous trajectory frames in
+!   DL_POLY 2 or LAMMPS custom formats.
+!
+! Supported formats:
+!   - writecfg_dlp : Writes CONFIG.last in standard DL_POLY 2 format.
+!   - writecfg_lmp : Writes last.lammpstrj in LAMMPS custom dump format.
+!   - dump_trj     : Writes an individual trajectory frame to an open unit.
+!===============================================================================
 module WriteCfg
-  !
-  ! Dump final configuration and trajectory files in different formats
-  !
   use configuration, only : a, b, c, side, r, natoms, ntype,&
        &atoms, iatype, nsp, r_unit, ndim
   use rundata, only: iocfg, iotrj
 contains
+
+  !-----------------------------------------------------------------------------
+  ! Subroutine: writecfg_dlp
+  !
+  ! Purpose:
+  !   Writes the final configuration to 'CONFIG.last' in standard DL_POLY 2 format:
+  !     Line 1: Header / Title record
+  !     Line 2: keytrj (0), imcon (1)
+  !     Lines 3-5: Box lattice vectors a, b, c in Angstroms
+  !     Per-atom records: Species label and atom index, followed by unscaled (x, y, z).
+  !-----------------------------------------------------------------------------
   Subroutine writecfg_dlp
-    ! DLPOLY format
     Implicit None
     Integer :: keytrj=0, imcon=1, iatm, i, j
     Open (iocfg,file='CONFIG.last')
@@ -23,8 +42,13 @@ contains
     close(iocfg)
   End Subroutine writecfg_dlp
 
+  !-----------------------------------------------------------------------------
+  ! Subroutine: writecfg_lmp
+  !
+  ! Purpose:
+  !   Writes final configuration to 'last.lammpstrj' in LAMMPS custom dump format.
+  !-----------------------------------------------------------------------------
   Subroutine writecfg_lmp(istep)
-    ! LAMMPS format dump custom id type mol x y z 
     Implicit None
     Integer :: keytrj=0, imcon=1, iatm, i, j, istep
     Open (iocfg,file='last.lammpstrj')
@@ -32,7 +56,18 @@ contains
     close(iocfg)
   End Subroutine writecfg_lmp
 
-
+  !-----------------------------------------------------------------------------
+  ! Subroutine: dump_trj
+  !
+  ! Purpose:
+  !   Writes a trajectory snapshot to the specified logical unit (iocfg) in
+  !   standard LAMMPS dump format ("ITEM: TIMESTEP", "ITEM: NUMBER OF ATOMS",
+  !   "ITEM: BOX BOUNDS", "ITEM: ATOMS id type mol x y z").
+  !
+  ! Arguments:
+  !   istep (in) : Current simulation timestep / sweep counter.
+  !   iocfg (in) : Logical file unit number to write to.
+  !-----------------------------------------------------------------------------
   Subroutine dump_trj(istep,iocfg)
     implicit none
     integer,intent(IN) :: istep, iocfg

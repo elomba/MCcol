@@ -1,7 +1,25 @@
+!===============================================================================
+! Module: output
+!
+! Purpose:
+!   Handles formatted output for thermodynamic properties, structural data,
+!   banners, execution timings, and radial distribution functions.
+!
+! Output Files:
+!   - thermoaver.dat : Block averages of thermodynamic properties.
+!   - thermoins.dat  : Instantaneous per-particle energies, volumes, and box sides.
+!   - gmix.dat       : Computed partial pair distribution functions g_ij(r).
+!   - stdout         : Runtime banners, acceptance rates, and energy summaries.
+!===============================================================================
 module output
     use rundata, only : ioth, iothi, igr
     public :: printout
 contains
+
+    !---------------------------------------------------------------------------
+    ! Subroutine: initout
+    ! Purpose: Prints simulation start banner with host machine name, date, and time.
+    !---------------------------------------------------------------------------
     subroutine initout
         implicit none
         character :: date*8, time*10, name*20
@@ -13,6 +31,10 @@ contains
             &,time(3:4),time(5:6)
     end subroutine initout
 
+    !---------------------------------------------------------------------------
+    ! Subroutine: end_printout
+    ! Purpose: Prints simulation termination banner with total elapsed CPU time.
+    !---------------------------------------------------------------------------
     Subroutine end_printout
         Use util, Only : cputime
         Use rundata, Only : s_cput, e_cput
@@ -26,7 +48,10 @@ contains
             &,time(3:4),time(5:6), e_cput-s_cput
     End Subroutine end_printout
 
-
+    !---------------------------------------------------------------------------
+    ! Subroutine: run_info
+    ! Purpose: Prints selected thermodynamic ensemble and electrostatics mode.
+    !---------------------------------------------------------------------------
     subroutine run_info
         use potential, only : units, elect
         use rundata, only : ensemble
@@ -37,8 +62,12 @@ contains
         else
             write(*,'(" No electrostatics "/)')
         endif
-
     end subroutine run_info
+
+    !---------------------------------------------------------------------------
+    ! Subroutine: init_printout
+    ! Purpose: Opens thermoaver.dat and thermoins.dat and writes table header lines.
+    !---------------------------------------------------------------------------
     subroutine init_printout
         use potential, only : elect
         use rundata, only : ensemble, stat
@@ -82,6 +111,18 @@ contains
         endif
     end subroutine init_printout
 
+    !---------------------------------------------------------------------------
+    ! Subroutine: Printout
+    !
+    ! Purpose:
+    !   Outputs thermodynamic data to stdout, thermoins.dat (instantaneous),
+    !   and thermoaver.dat (block averages).
+    !
+    ! Arguments:
+    !   inst (in) : Logical flag.
+    !               .true.  : Called during production to write running block averages.
+    !               .false. : Called during equilibration to write instantaneous status.
+    !---------------------------------------------------------------------------
     Subroutine Printout(inst)
         use set_precision
         use properties, only : e_fourier, E_sr,  Etotal, Evdw,&
@@ -109,9 +150,7 @@ contains
             Endif
 
         Else
-            !
             ! Set energy reference to average value during equilibration.
-            !
             npeq = npeq+1
             Etavq = Etavq+Etotal
         Endif
@@ -145,6 +184,10 @@ contains
 
     End Subroutine Printout
 
+    !---------------------------------------------------------------------------
+    ! Subroutine: printgr
+    ! Purpose: Writes the current radial distribution functions g_ij(r) to gmix.dat.
+    !---------------------------------------------------------------------------
     Subroutine printgr
         Use set_precision
         Use configuration, only : nsp
@@ -167,9 +210,11 @@ contains
         close(igr)
     End Subroutine printgr
 
-
+    !---------------------------------------------------------------------------
+    ! Subroutine: print_ener
+    ! Purpose: Prints detailed breakdown of potential energy components to stdout.
+    !---------------------------------------------------------------------------
     Subroutine print_ener
-        !    new subroutine: added by Eva
         Use set_precision
         Use potential, Only : selfe, elect, units, rcpcut,qtotal
         Use properties, Only: E_sr,E_Fourier, Evdw
@@ -185,7 +230,6 @@ contains
             write(*, '(" Deviation from charge neutrality =",g15.7)') qtotal
         EndIf
         Write(*, '(" Etotal =",g15.7,1x,a8/80("-"))') (selfe+E_Fourier+E_sr)*kT,units
-
     End Subroutine print_ener
 
 end module output

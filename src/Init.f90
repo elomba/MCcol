@@ -1,29 +1,45 @@
+!===============================================================================
+! Module: Init
+!
+! Purpose:
+!   Orchestrates simulation initialization, parameter parsing from input files,
+!   force field setup, Ewald reciprocal grid construction, and pair potential
+!   interpolation tabulations.
+!
+! Routines:
+!   - Init_conf    : Reads system.dat, loads configuration, sets box metrics.
+!   - Init_rundata : Reads runMC.dat, parses ensemble, steps, RNG seeds.
+!   - read_potpars : Parses pair potential parameters (Morse or LJ).
+!   - Init_pot     : Converts units, defines cutoffs, shifts potentials.
+!   - Init_selfe   : Evaluates Ewald self-energy, allocates k-space arrays.
+!   - Init_fourier : Constructs 3D reciprocal wavevectors and Ewald weight factors.
+!   - Init_interp  : Precalculates spline interpolation table utab on radial grid.
+!===============================================================================
 Module Init
-    !
-    ! This module contains initialization and input routines
-    !
     Use set_precision
     Use configuration
     Use potential
     Use properties
     Use rundata
 contains
+
+    !---------------------------------------------------------------------------
+    ! Subroutine: Init_conf
+    !
+    ! Purpose:
+    !   Reads system.dat to obtain species count, atom counts, charges, units,
+    !   and forcefield parameters. Loads coordinates via dlplmp_readconf,
+    !   computes box volume, and normalizes particle coordinates to [-0.5, 0.5).
+    !---------------------------------------------------------------------------
     Subroutine Init_conf
-        !
-        ! Read in system configuration and initialize storage.
-        ! Initialize particle configuration
-        !
         use readconf, only : dlplmp_readconf
-        !
-        !   Unit cell is tetragonal !!
-        !
         Implicit None
         Integer :: keytrj, imcon, iatm, i, j, nit
         Real(wp) :: dumx, dumy, dumz, qsp2
         Open (iosys,file='system.dat')
         read(iosys,*) restart
         if (restart) then
-            ! Load dump file
+            ! Load binary dump file for restart
             call load
             return
         endif
@@ -33,6 +49,7 @@ contains
         nitmax = (nsp*nsp+nsp)/2
         Allocate(ntype(nsp),atoms(nsp),qsp(nsp),q(natoms),&
             & qprod(nitmax))
+        q(:) = 0.0_wp
         do i=1, nsp
            Read(iosys,*) j, atoms(j),qsp(j)
         end do
@@ -66,7 +83,7 @@ contains
         ! the numbers of particles of each type (ntype) are defined
         !
         if (initcf == "dlp" .or. initcf == "lmp") then
-            ! Read in DLPOLY CONFIG file with particle positions
+            ! Read in DLPOLY CONFIG or LAMMPS data.atoms file
             call dlplmp_readconf
         else
             print *, "*** Input error ",initcf," not supported as input configuration"
@@ -91,17 +108,21 @@ contains
         v0 = a(1)*b(2)*c(3)+a(2)*b(3)*c(1)+a(3)*b(1)*c(2)-a(3)*b(2)*c(1)&
             &-a(2)*b(1)*c(3)-a(1)*b(3)*c(2)
         !
-        !
-        ! Rescale atomic coordinates to box length units
+        ! Rescale atomic coordinates to box length units [-0.5, 0.5)
         !
         Forall (i=1:natoms) R(1:ndim,i) = R(1:ndim,i)/r_unit(1:ndim)
     End Subroutine Init_conf
 
 
+    !---------------------------------------------------------------------------
+    ! Subroutine: Init_rundata
+    !
+    ! Purpose:
+    !   Parses runMC.dat for ensemble ('nvt' or 'npt'), production/equilibration
+    !   sweep counts, averaging intervals, maximum trial displacements,
+    !   temperature, pressure, RDF binning, and seeds the random number generator.
+    !---------------------------------------------------------------------------
     Subroutine Init_rundata
-        !
-        ! Read data specific for the run
-        !
         Implicit None
         Open(iorun,file='runMC.dat')
         ! Read in name of results directory
@@ -159,26 +180,26 @@ contains
     End Subroutine Init_rundata
 
 
+    !---------------------------------------------------------------------------
+    ! Subroutine: read_potpars
+    !
+    ! Purpose:
+    !   Reads interaction potential types and parameter matrices from system.dat.
+    !   Supports Morse ('mors', keyp=1) and Lennard-Jones ('lj', keyp=2).
+    !   Populates symmetric indexing matrix itp(i, j) -> nit.
+    !---------------------------------------------------------------------------
     subroutine read_potpars
         implicit none
         integer :: nit, i, j, k, l
-        !
-        !  Read parameters for interaction potential
-        !
+
         Allocate(aa(nsp,nsp),cc(nsp,nsp),bb(nsp,nsp),rc(nsp&
             &,nsp),itp(nsp,nsp),rc2(nitmax),pot(nitmax)&
             &,keyp(nitmax),al(nitmax),bl(nitmax),&
             & cl(nitmax),bl2(nitmax),ucut(nitmax))
         ucut(:)=0.0d0
         nit = 1
-        !
-        ! Morse (keyp=1) and LJ (keyp=2) implemented
-        !
 
-        !
-        ! itp controls transforms (i,j) notation for the
-        ! interaction into a vector type
-        !
+        ! Populate symmetric mapping matrix itp: (species_i, species_j) -> pair_index
         do i = 1, nsp
            do j = i, nsp
               itp(i,j) = nit
@@ -186,6 +207,7 @@ contains
               nit = nit+1
            enddo
         enddo
+
         Do k= 1,nsp
             Do l= k, nsp
                Read(iosys,*) i, j, pot(itp(i,j))
@@ -217,28 +239,28 @@ contains
          kint = keyp(1)
     end subroutine read_potpars
 
+
+    !---------------------------------------------------------------------------
+    ! Subroutine: Init_pot
+    !
+    ! Purpose:
+    !   Initializes physical constants and unit conversion factors for the chosen
+    !   energy unit system ('eV', 'K', or 'kcal/mol').
+    !   Determines overall cutoff rcut, computes potential shifts ucut if pshift=.true.,
+    !   and initializes Ewald and RDF data structures.
+    !---------------------------------------------------------------------------
     Subroutine Init_pot
-      !
-      !  Initialize potential parameters
-      !
       Implicit None
       real(wp), external :: fpot_LJ, fpot_Morse
       logical :: old_elect
       Integer :: i,j, nit
-      !
-      ! Adjust T and conversion factors depending on units used.
-      !
-      If  (Trim(Adjustl(units)) == Trim(Adjustl("eV")))  Then
+
+      ! Adjust thermal energy kT and conversion factors based on energy units
+      If (Trim(Adjustl(units)) == Trim(Adjustl("eV"))) Then
          kT = kbev*temp
-         ! Internal energy units defined in terms of kT
          ctr = ctreV/kT
          pres = pres*bar2eV/kT
-
       Else If (Trim(Adjustl(units)) == Trim(Adjustl("K"))) Then
-         !
-         ! energy units are K
-         !
-
          kT = temp
          ctr = ctreV*ev2k/kT
          pres = pres*bar2k/kT
@@ -246,22 +268,23 @@ contains
          kT = kbKcal*temp
          ctr = ctreV*ev2Kcal/kT
          pres = pres*bar2Kcal/kT
-
       Else
-         Print *, " *** Input error:",units," not implemented as energy un&
-              &it"            
+         Print *, " *** Input error:",units," not implemented as energy unit"
          Stop
       End If
-      ! scale energy unit params with kT
-      if (kint==2) then
-         al(1:nitmax) = 4*al(1:nitmax)/kT
+
+      ! Scale well-depth parameter al with thermal energy 1/kT
+      if (kint == 2) then
+         al(1:nitmax) = 4.0d0*al(1:nitmax)/kT
       else
          al(1:nitmax) = al(1:nitmax)/kT
       endif
-      ! Set global cutoff to the maximum of the site-site cutoffs
+
+      ! Set global cutoff to maximum of pairwise cutoffs
       rcut = Maxval(rc(:,:))
       rcut2 = rcut**2
-      ! shift potential
+
+      ! Compute potential shift at cutoff if requested
       if (pshift) then
          old_elect = elect
          elect = .false.
@@ -273,45 +296,45 @@ contains
                else
                   ucut(nit) = fpot_LJ(rc(i,j)**2,nit)
                endif
-!               print *, nit, rc(i,j)**2,ucut(nit),bl2(nit)
                nit=nit+1
             enddo
          enddo
          elect = old_elect
       endif
-      !
-      ! Initialized Ewald method
-      !
+
+      ! Initialize Ewald electrostatics
       if (elect) then
          call init_selfe
          call init_fourier
       Endif
+
+      ! Allocate RDF bins if fresh simulation run
       if (.not. restart) then
-         !
-         ! With the cutoff defined, allocate arrays for g(r)
-         !
          nmaxgr = Nint(rcut/deltagr)
          Allocate(histomix(nmaxgr,nsp,nsp),gmix(nmaxgr,nsp,nsp))
          histomix(:,:,:) = 0
       endif
     End Subroutine Init_pot
 
+
+    !---------------------------------------------------------------------------
+    ! Subroutine: Init_selfe
+    !
+    ! Purpose:
+    !   Calculates Ewald electrostatic self-energy:
+    !     E_self = - (kappa / sqrt(pi)) * [e^2 / (4*pi*epsilon_0*kT)] * sum_i q_i^2
+    !   Allocates reciprocal space arrays (eix, eiy, eiz, km2, ekm2, rhokk).
+    !---------------------------------------------------------------------------
     subroutine Init_selfe
         implicit none
         Integer :: i
-        !
-        ! Self energy of Ewald contribution and allocate arrays for Ewald sums
-        !
-        selfe = 0
-        qtotal = 0
-        !
-        ! Initialize q(1:natoms) with the atomic charges (only for dlpoly configuration)
-        !
-        if (initcf == "dlp") then
-           Do i = 1, natoms
-              q(i) = qsp(iatype(i))
-           End Do
-        endif
+
+        selfe = 0.0d0
+        qtotal = 0.0d0
+        ! Initialize individual atomic charges from species charges
+        Do i = 1, natoms
+           if (abs(q(i)) < 1.0d-12) q(i) = qsp(iatype(i))
+        End Do
         selfe = Dot_product(q(1:natoms),q(1:natoms))
         qtotal = Sum(q(1:natoms))
         selfe = - ctr*(kappa/Sqrt(pi))*selfe
@@ -321,91 +344,105 @@ contains
         Allocate(einx(-kmx:kmx),einy(-kmy:kmy),einz(0:kmz))
         Allocate(kr(ndim),km2(0:kmt),ekm2(kmt),rhokk(kmt),deltann(kmt))
         Write(*, '("** Charged system: Init Fourier terms with Ewald parameters:",f10.5,3i4)') kappa, kmx, kmy, kmz
-
     end subroutine Init_selfe
 
+
+    !---------------------------------------------------------------------------
+    ! Subroutine: Init_fourier
+    !
+    ! Purpose:
+    !   Pre-calculates 3D reciprocal wavevectors k = 2*pi*(kx/Lx, ky/Ly, kz/Lz),
+    !   their squared magnitudes km2, and Ewald reciprocal weights:
+    !     ekm2 = exp( -k^2 / (4*kappa^2) ) / k^2
+    !   Exploits inversion symmetry to store only non-redundant k-vectors.
+    !---------------------------------------------------------------------------
     subroutine Init_fourier
         implicit none
         Integer :: i, ind, kx, ky, kz
-        !
-        ! Initialize Fourier components of Ewald contributions
-        !
-        pi2 = 2*pi
+
+        pi2 = 2.0d0 * pi
         rhokk(:) = 0.0d0
-        dospix = 2*pi/side(1)
-        dospiy = 2*pi/side(2)
-        dospiz = 2*pi/side(3)
-        !
-        ! Determine the cutoff in Fourier space
-        !
-        rcpcut = 1.05*Min(dospix*kmx,dospiy*kmy,dospiz*kmz)
+        dospix = 2.0d0*pi/side(1)
+        dospiy = 2.0d0*pi/side(2)
+        dospiz = 2.0d0*pi/side(3)
+
+        ! Determine reciprocal cutoff
+        rcpcut = 1.05d0*Min(dospix*kmx, dospiy*kmy, dospiz*kmz)
         rcpcut2 = rcpcut**2
         ind = 1
-        !
-        !  Initialize k-vectors for Fourier component of Ewald summation.
-        !  Use k-space symmetry, i.e. kz = 0..kmz, if kz=0, ky=0..kmy, kx=-kmx..kmz
-        !  and ky = -kmy..kmy otherwise, if kz=ky=0, kx=1..kmx and kx=-kmx..kmx
-        !  otherwise
-        !
+
+        ! Symmetry partition 1: kz=0, ky=0, kx=1..kmx
         Do kx = 1, kmx
             kr(1) = dospix*kx
-            km2(ind) =  kr(1)*kr(1)
-            ekm2(ind) = Exp(-km2(ind)/(4*kappa**2))/km2(ind)
+            km2(ind) = kr(1)*kr(1)
+            ekm2(ind) = Exp(-km2(ind)/(4.0d0*kappa**2))/km2(ind)
             ind = ind+1
         End Do
+        ! Symmetry partition 2: kz=0, ky=1..kmy, kx=-kmx..kmx
         Do ky = 1, kmy
             kr(2) = dospiy*ky
             Do kx = -kmx, kmx
                 kr(1) = dospix*kx
-                km2(ind) =  Dot_product(kr(1:2),kr(1:2))
-                ekm2(ind) = Exp(-km2(ind)/(4*kappa**2))/km2(ind)
+                km2(ind) = Dot_product(kr(1:2),kr(1:2))
+                ekm2(ind) = Exp(-km2(ind)/(4.0d0*kappa**2))/km2(ind)
                 ind = ind+1
             End Do
         End Do
+        ! Symmetry partition 3: kz=1..kmz, ky=-kmy..kmy, kx=-kmx..kmx
         Do kz = 1, kmz
             kr(3) = dospiz*kz
             Do ky = -kmy, kmy
                 kr(2) = dospiy*ky
                 Do kx = -kmx, kmx
                     kr(1) = dospix*kx
-                    km2(ind) =  Dot_product(kr(:),kr(:))
-                    ekm2(ind) = Exp(-km2(ind)/(4*kappa**2))/km2(ind)
+                    km2(ind) = Dot_product(kr(:),kr(:))
+                    ekm2(ind) = Exp(-km2(ind)/(4.0d0*kappa**2))/km2(ind)
                     ind = ind+1
                 End Do
             End Do
         End Do
+
+        ! Zero-frequency initial phase components
         eix(1:natoms,0) = (1.0d0, 0.0d0)
         eiy(1:natoms,0) = (1.0d0, 0.0d0)
         eiz(1:natoms,0) = (1.0d0, 0.0d0)
-        einx(0) = 1
-        einy(0) = 1
-        einy(0) = 1
+        einx(0) = 1.0d0
+        einy(0) = 1.0d0
+        einz(0) = 1.0d0
     end subroutine Init_fourier
 
 
-
+    !---------------------------------------------------------------------------
+    ! Subroutine: Init_interp
+    !
+    ! Purpose:
+    !   Tabulates short-range pair potentials on a fine 1D radial grid with
+    !   spacing dr = 0.001 Angstrom up to the cutoff radius.
+    !   Tabulated arrays are used by Paul Breeuwsma cubic spline interpolation.
+    !
+    ! Arguments:
+    !   f (external function) : Pair potential evaluation function.
+    !---------------------------------------------------------------------------
     subroutine Init_interp(f)
-        !
-        !  Initialize interpolation tables for short range pair interactions
-        !
         use interp, only : utab, dr, rmin2, ncut
         implicit none
         integer :: iti, itj, i, j, k, nit
         real (wp) :: upot, rr, upmax=80.0d0
         real(wp), external :: f
-        ncut = nint ((rcut+0.5)/dr)
+
+        ncut = nint((rcut+0.5d0)/dr)
         allocate(utab(ncut,nitmax),rmin2(nitmax))
-        !  allocate(itp(nsp,nsp))
+
         nit = 1
         do i = 1, nsp
             do j = i, nsp
-                upot = 0.0
+                upot = 0.0d0
                 k = ncut
                 do while (k >= 1 .and. upot/kT < upmax)
                    rr = (k*dr)**2
                    upot = f(rr,nit)
                    utab(k,nit) = upot
-                   k=k-1
+                   k = k - 1
                 End Do
                 rmin2(nit) = rr
                 utab(1:k,nit) = utab(k+1,nit)

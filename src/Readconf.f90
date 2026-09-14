@@ -1,16 +1,45 @@
+!===============================================================================
+! Module: readconf
+!
+! Purpose:
+!   Provides configuration reading routines for initial particle coordinates,
+!   box geometries, and atom type assignments.
+!
+! Supported Formats:
+!   1. DL_POLY 2 format (initcf = "dlp", file 'CONFIG'):
+!      - Reads record title, keytrj, imcon, lattice vectors a, b, c.
+!      - Checks orthorhombic condition (diagonal lattice matrix).
+!      - Reads atom labels and coordinates.
+!   2. LAMMPS data format (initcf = "lmp", file 'data.atoms'):
+!      - Parses header lines for 'atoms', 'atom types', and box bounds:
+!        [xlo, xhi], [ylo, yhi], [zlo, zhi].
+!      - Verifies that atom types and count match system.dat definitions.
+!      - Supports LAMMPS full (id mol type q x y z), molecular (id mol type x y z),
+!        and atomic (id type x y z) styles.
+!      - Re-centers coordinates relative to box midpoint.
+!===============================================================================
 Module readconf
     use set_precision
     use configuration, only : a, b, c, side, side2, v0, r_unit, &
         & q, r, natoms, ntype, nsp, ndim, atoms, iatype
     use rundata, only : iocfg, initcf, c_red, c_reset 
 contains
+
+  !-----------------------------------------------------------------------------
+  ! Subroutine: dlplmp_readconf
+  !
+  ! Purpose:
+  !   Dispatcher subroutine that reads initial configuration files based on the
+  !   `initcf` variable ("dlp" for DL_POLY CONFIG or "lmp" for LAMMPS data.atoms).
+  !-----------------------------------------------------------------------------
   subroutine dlplmp_readconf
     implicit none
     Integer :: keytrj, imcon, iatm, i, j, dumm
     real(wp) :: dumx, dumy, dumz, rdum(3), xl, xh, yl, yh, zl, zh, rcf(3)
     Character :: atms*8
     Character(len=256) :: line
-    Integer :: ios, n_types_in_file, natms
+    Integer :: ios, n_types_in_file, natms, imol
+    Real(wp) :: q_atom
     if ( initcf == "dlp") then
        Open (iocfg,file='CONFIG',status='old')
        Read(iocfg,'(1x)')
@@ -73,11 +102,13 @@ contains
             End If
          End If 
 
-         If (index(line, 'atoms') > 0 ) Then
-            read(line, *) natms
-            if (natms .ne. natoms) then
-               write(*,"(A,' ** Error natoms in data.atoms .ne. to system.dat !!',A)")c_red, c_reset
-               stop
+         If (index(line, 'atoms') > 0 .and. index(line, 'atom types') == 0) Then
+            read(line, *, iostat=ios) natms
+            if (ios == 0) then
+               if (natms .ne. natoms) then
+                  write(*,"(A,' ** Error natoms in data.atoms .ne. to system.dat !!',A)")c_red, c_reset
+                  stop
+               endif
             endif
          End If
 
@@ -92,7 +123,22 @@ contains
             b(2) = yh-yl
             c(3) = zh-zl
             Do i = 1, natoms
-               read(iocfg, *) j, iatm, Rcf(:)
+               Read(iocfg, '(A)') line
+               Do while (len_trim(line) == 0)
+                  Read(iocfg, '(A)') line
+               End do
+               ! Try reading as full style: id mol type q x y z (7 values)
+               read(line, *, iostat=ios) j, imol, iatm, q_atom, Rcf(1), Rcf(2), Rcf(3)
+               if (ios /= 0) then
+                  ! Try reading as molecular style: id mol type x y z (6 values)
+                  read(line, *, iostat=ios) j, imol, iatm, Rcf(1), Rcf(2), Rcf(3)
+                  if (ios /= 0) then
+                     ! Fallback to atomic style: id type x y z (5 values)
+                     read(line, *) j, iatm, Rcf(1), Rcf(2), Rcf(3)
+                  endif
+               else
+                  q(j) = q_atom
+               endif
                iatype(j) = iatm 
                ntype(iatm) = ntype(iatm)+1
                ! Center coordinates
